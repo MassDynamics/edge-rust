@@ -19,9 +19,7 @@ pub fn unit_nb_deviance(y: f64, mu: f64, phi: f64) -> f64 {
     let mu = mu + 1e-8;
     let out = if phi < 1e-4 {
         let resid = y - mu;
-        2.0 * (y * ln(y / mu)
-            - resid
-            - 0.5 * resid * resid * phi * (1.0 + phi * (0.0 * resid - y)))
+        2.0 * (y * ln(y / mu) - resid - 0.5 * resid * resid * phi * (1.0 + phi * (0.0 * resid - y)))
     } else {
         let product = mu * phi;
         if product > 1e6 {
@@ -144,7 +142,8 @@ pub fn glm_fit(
 }
 
 /// `glmFit.default` with `prior.count > 0`: deviance and fitted values from the unshrunk fit,
-/// coefficients replaced by `predFC(..., prior.count) * log(2)`.
+/// coefficients replaced by `predFC(..., prior.count) * log(2)`. Also returns the unshrunk
+/// coefficients (`unshrunk.coefficients`).
 pub fn glm_fit_shrunk(
     y: &[f64],
     nlib: usize,
@@ -153,13 +152,14 @@ pub fn glm_fit_shrunk(
     offset: &[f64],
     disp: &[f64],
     prior_count: f64,
-) -> GlmFit {
+) -> (GlmFit, Vec<f64>) {
     let mut fit = glm_fit(y, nlib, x, p, offset, disp, None);
     let (yy, oo) = add_prior_count(y, nlib, offset, prior_count);
     let pfc = glm_fit(&yy, nlib, x, p, &oo, disp, None);
     let ln2 = std::f64::consts::LN_2;
-    fit.coefficients = pfc.coefficients.iter().map(|b| b / ln2 * ln2).collect();
-    fit
+    let shrunk = pfc.coefficients.iter().map(|b| b / ln2 * ln2).collect();
+    let unshrunk = std::mem::replace(&mut fit.coefficients, shrunk);
+    (fit, unshrunk)
 }
 
 /// `addPriorCount(y, offset, prior.count)` with a shared offset row and a scalar prior count.
@@ -532,20 +532,6 @@ fn fit_leven_vec(
         }
     }
     dev
-}
-
-#[cfg(test)]
-pub(crate) fn levenberg_given(y: &[f64], nlib: usize, x: &[f64], p: usize, offset: &[f64], disp: &[f64], start: &[f64]) -> GlmFit {
-    levenberg(y, nlib, x, p, offset, disp, Some(start), 250, 1e-6)
-}
-#[cfg(test)]
-pub(crate) fn null_start(y: &[f64], nlib: usize, x: &[f64], p: usize, offset: &[f64], disp: &[f64]) -> Vec<f64> {
-    // a zero-iteration Levenberg returns the start
-    levenberg(y, nlib, x, p, offset, disp, None, 0, 1e-6).coefficients
-}
-#[cfg(test)]
-pub(crate) fn autofill_pub(beta: &[f64], offset: &[f64], x: &[f64], mu: &mut [f64]) {
-    autofill(beta, offset, x, mu)
 }
 
 #[cfg(test)]

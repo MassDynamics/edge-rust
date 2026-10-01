@@ -4,8 +4,8 @@
 //! and the F statistic is the deviance difference over the posterior QL dispersion.
 
 use crate::glm::glm_fit;
-use crate::ql::QlFit;
 use crate::lapack::qr_decompose_r45;
+use crate::ql::QlFit;
 use rnum::linalg::p_adjust_bh;
 use rnum::nmath::pf;
 

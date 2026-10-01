@@ -9,12 +9,12 @@
 //! The ANOVA shaping (`R/runANOVA.R`, `.packageANOVAOutput`) is a string formatting step and is
 //! left to the caller; [`max_abs_log2fc`] supplies the one computed piece of it.
 
-use crate::disp::estimate_disp;
+use crate::disp::{estimate_disp, Disp};
 use crate::filter::filter_by_expr;
-use crate::norm::calc_norm_factors;
-use crate::ql::glm_ql_fit;
-use crate::qltest::glm_ql_ftest;
 use crate::lapack::qr_decompose_r45;
+use crate::norm::calc_norm_factors;
+use crate::ql::{glm_ql_fit, QlFit};
+use crate::qltest::glm_ql_ftest;
 use rnum::glibm::ln;
 use rnum::nmath::qt;
 use rnum::{LimmaError, Result};
@@ -91,6 +91,18 @@ pub struct EdgerOutput {
     pub design_cols: Vec<String>,
     /// `filterByExpr` keep flags, per input gene.
     pub kept: Vec<bool>,
+}
+
+/// What the fit leaves behind besides the table, for diagnostics: the kept genes' indices into
+/// the input, the library sizes after filtering and the norm factors (per sample), and the
+/// `estimateDisp` and `glmQLFit` results over the kept genes.
+#[derive(Debug, Clone)]
+pub struct EdgerDiag {
+    pub kept_idx: Vec<usize>,
+    pub lib_size: Vec<f64>,
+    pub norm_factors: Vec<f64>,
+    pub disp: Disp,
+    pub ql: QlFit,
 }
 
 fn err(msg: impl Into<String>) -> LimmaError {
@@ -189,6 +201,11 @@ fn r_sign(x: f64) -> f64 {
 
 /// Run the engine. Errors carry the production messages (without the `md_error` markers).
 pub fn run_edger(input: &EdgerInput) -> Result<EdgerOutput> {
+    run_edger_diag(input).map(|(out, _)| out)
+}
+
+/// [`run_edger`], also returning the intermediate fit ([`EdgerDiag`]).
+pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
     let ng = input.gene_ids.len();
     let nlib = input.sample_ids.len();
     if input.entity_type != "gene" {
@@ -320,7 +337,7 @@ pub fn run_edger(input: &EdgerInput) -> Result<EdgerOutput> {
         });
     }
 
-    Ok(EdgerOutput {
+    let out = EdgerOutput {
         gene_ids: input.gene_ids.clone(),
         ave_expr: spread(&disp.ave_logcpm, &kept_idx, ng),
         f: spread(&om.f, &kept_idx, ng),
@@ -330,7 +347,15 @@ pub fn run_edger(input: &EdgerInput) -> Result<EdgerOutput> {
         design,
         design_cols: cols,
         kept: fb.keep,
-    })
+    };
+    let diag = EdgerDiag {
+        kept_idx,
+        lib_size: lib,
+        norm_factors: nf.norm_factors,
+        disp,
+        ql,
+    };
+    Ok((out, diag))
 }
 
 /// `extractOutputANOVA`'s `get_max_fc` (`R/runANOVA.R`): per gene, the comparison with the

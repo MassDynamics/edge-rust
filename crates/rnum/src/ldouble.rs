@@ -12,6 +12,7 @@ pub struct Ld {
     e: i32,
 }
 
+#[allow(clippy::should_implement_trait)]
 impl Ld {
     pub const ZERO: Ld = Ld {
         neg: false,
@@ -168,7 +169,10 @@ impl Ld {
             let r2 = r << 1;
             let bit = (r2 >= o.m as u128) as u128;
             let rest = r2 - bit * o.m as u128;
-            ((q << 2) | (bit << 1) | (rest != 0) as u128, self.e - o.e - 66)
+            (
+                (q << 2) | (bit << 1) | (rest != 0) as u128,
+                self.e - o.e - 66,
+            )
         };
         Ld::round(neg, n, e)
     }

@@ -189,7 +189,8 @@ fn log_inline(ix: u64) -> (f64, f64) {
     let lo3 = ar.mul_add(r, -ar2);
     let lo4 = t2 - hi + ar2;
     let q = ar2.mul_add(
-        r.mul_add(PA[6], PA[5]).mul_add(ar2, r.mul_add(PA[4], PA[3])),
+        r.mul_add(PA[6], PA[5])
+            .mul_add(ar2, r.mul_add(PA[4], PA[3])),
         r.mul_add(PA[2], PA[1]),
     );
     let lo = ar3.mul_add(q, lo1 + lo2 + lo3 + lo4);
@@ -197,6 +198,7 @@ fn log_inline(ix: u64) -> (f64, f64) {
     (y, hi - y + lo)
 }
 
+#[allow(clippy::assign_op_pattern)] // keep the glibc expression order
 fn specialcase(tmp: f64, sbits: u64, ki: u64) -> f64 {
     if ki & 0x8000_0000 == 0 {
         let scale = f64::from_bits(sbits.wrapping_sub(1009u64 << 52));

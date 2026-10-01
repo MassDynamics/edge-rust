@@ -124,3 +124,25 @@ def test_expected_error(run):
     with pytest.raises(ValueError) as e:
         edge_rust.run(counts, si, cmp, params)
     assert expected in str(e.value)
+
+
+def test_diagnostics_are_consistent_with_the_table():
+    run = next(r for r in RUNS if "airway_all_ctlfactor" in r)
+    counts, si, cmp, params = inputs(run)
+    plain = edge_rust.run(counts, si, cmp, params)
+    table, diag = edge_rust.run(counts, si, cmp, params, diagnostics=True)
+    pd.testing.assert_frame_equal(table, plain)
+    genes, sm, design = diag["genes"], diag["samples"], diag["design"]
+    assert set(diag) == {"samples", "genes", "design", "disp", "fitted", "scalars"}
+    # Kept genes are the rows with statistics, in input order.
+    kept = table.loc[table["AveExpr"].notna(), "GroupId"].astype(str)
+    assert sorted(genes["id"].astype(str)) == sorted(kept)
+    assert list(diag["disp"]["id"]) == list(genes["id"])
+    np.testing.assert_array_equal(sm["eff_lib_size"], sm["lib_size"] * sm["norm_factor"])
+    # Fitted means are exp(X beta + log(effective library)) at the unshrunk coefficients.
+    cols = diag["scalars"]["design_columns"]
+    x = design[cols].to_numpy()
+    beta = genes[[f"coef_{c}" for c in cols]].to_numpy()
+    mu = np.exp(beta @ x.T + np.log(sm["eff_lib_size"].to_numpy()))
+    np.testing.assert_allclose(diag["fitted"].to_numpy(), mu, rtol=1e-10)
+    assert diag["scalars"]["df_residual_total"] == len(genes) * (len(sm) - len(cols))

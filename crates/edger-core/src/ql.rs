@@ -24,6 +24,10 @@ pub struct QlFit {
     pub df_residual: f64,
     /// `ngenes x p`, gene-major, natural-log scale (`predFC * log(2)`).
     pub coefficients: Vec<f64>,
+    /// `unshrunk.coefficients`: the same fit without the prior count, same layout.
+    pub unshrunk_coefficients: Vec<f64>,
+    /// `fitted.values`, `ngenes x nlib`, gene-major.
+    pub fitted: Vec<f64>,
     pub s2: Vec<f64>,
     pub df_residual_adj: Vec<f64>,
     pub deviance_adj: Vec<f64>,
@@ -197,7 +201,7 @@ pub fn glm_ql_fit(
     let disp = disp_raw.min(4.0);
     let fit0 = glm_fit(y, nlib, x, p, offset, &vec![disp; ng], None);
     let aqd = update_prior(y, &fit0.fitted, nlib, x, p, disp, ave);
-    let fit = glm_fit_shrunk(y, nlib, x, p, offset, &vec![disp / aqd; ng], 0.125);
+    let (fit, unshrunk) = glm_fit_shrunk(y, nlib, x, p, offset, &vec![disp / aqd; ng], 0.125);
     let (df_adj, dev_adj, s2) = adjust_vec(y, &fit.fitted, nlib, x, p, disp, aqd);
     let s2_in: Vec<f64> = s2
         .iter()
@@ -224,6 +228,8 @@ pub fn glm_ql_fit(
         deviance: fit.deviance,
         df_residual: (nlib - p) as f64,
         coefficients: fit.coefficients,
+        unshrunk_coefficients: unshrunk,
+        fitted: fit.fitted,
         s2,
         df_residual_adj: df_adj,
         deviance_adj: dev_adj,

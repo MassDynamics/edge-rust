@@ -35,6 +35,7 @@ const B: [f64; 10] = [
     d(0x3fc0b32f285aee66),
 ];
 /// `__log2_data`: (invc, logc, chi, clo) bits.
+#[rustfmt::skip]
 static LOG2_TAB: [(u64, u64, u64, u64); 64] = [
     (0x3ff724286bb1acf8, 0xbfe1095feecdb000, 0x3fe6200012b90a8e, 0x3c8904ab0644b605),
     (0x3ff6e1f766d2cca1, 0xbfe08494bd76d000, 0x3fe66000045734a6, 0x3c61ff9bea62f7a9),
@@ -127,7 +128,9 @@ pub fn log2(x: f64) -> f64 {
         let mut y = hi + p;
         lo += hi - y + p;
         lo += r4
-            * (B[2] + r * B[3] + r2 * (B[4] + r * B[5])
+            * (B[2]
+                + r * B[3]
+                + r2 * (B[4] + r * B[5])
                 + r4 * (B[6] + r * B[7] + r2 * (B[8] + r * B[9])));
         y += lo;
         return y;

@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use edger_core::pipeline::{
-    max_abs_log2fc, run_edger, Comparison, Control, ControlKind, EdgerInput,
+    max_abs_log2fc, run_edger_diag, Comparison, Control, ControlKind, EdgerInput,
 };
 
 fn vector<'py>(py: Python<'py>, data: Vec<f64>) -> Bound<'py, PyAny> {
@@ -26,8 +26,15 @@ fn vector<'py>(py: Python<'py>, data: Vec<f64>) -> Bound<'py, PyAny> {
 /// `max_pair` (index into `pairs` or None, per gene), `max_log2fc`, `design_cols` and `kept`,
 /// every vector over all input genes in input order. Engine errors raise `ValueError` with the
 /// production message.
+///
+/// With `diagnostics`, the dict also has `diag`: `kept_idx` (indices of the genes
+/// `filterByExpr` kept) and, over those genes, `ave_log_cpm`, `trended_disp`, `tagwise_disp`,
+/// `s2`, `s2_prior`, `s2_post`, `df_residual_adj`, `df_prior`, `coefficients` and
+/// `unshrunk_coefficients` (`nkept x p`, natural log) and `fitted` (`nkept x nsamples`); per
+/// sample `lib_size` and `norm_factor`; the transposed design (`p x nsamples`); and the scalars
+/// `df_residual`, `fit_dispersion`, `ave_ql_dispersion`, `common_disp` and `disp_prior_df`.
 #[pyfunction]
-#[pyo3(signature = (counts, gene_ids, sample_ids, condition_col, condition, controls, comparisons, norm_method = "TMM", entity_type = "gene"))]
+#[pyo3(signature = (counts, gene_ids, sample_ids, condition_col, condition, controls, comparisons, norm_method = "TMM", entity_type = "gene", diagnostics = false))]
 #[allow(clippy::too_many_arguments)]
 fn edger_pipeline<'py>(
     py: Python<'py>,
@@ -40,6 +47,7 @@ fn edger_pipeline<'py>(
     comparisons: Vec<(String, String, String, String)>,
     norm_method: &str,
     entity_type: &str,
+    diagnostics: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
     let a = counts.as_array();
     let (ng, nlib) = a.dim();
@@ -85,8 +93,8 @@ fn edger_pipeline<'py>(
         norm_method: norm_method.to_string(),
         entity_type: entity_type.to_string(),
     };
-    let out = py
-        .allow_threads(|| run_edger(&input))
+    let (out, diag) = py
+        .allow_threads(|| run_edger_diag(&input))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let (max_pair, max_log2fc) = max_abs_log2fc(&out.pairs);
 
@@ -113,9 +121,52 @@ fn edger_pipeline<'py>(
     d.set_item("pairs", pairs)?;
     d.set_item("max_pair", max_pair)?;
     d.set_item("max_log2fc", vector(py, max_log2fc))?;
+    if diagnostics {
+        let p = out.design_cols.len();
+        let dd = PyDict::new(py);
+        dd.set_item("kept_idx", diag.kept_idx)?;
+        dd.set_item("lib_size", vector(py, diag.lib_size))?;
+        dd.set_item("norm_factor", vector(py, diag.norm_factors))?;
+        // The column-major nsamples x p design read row-major is its p x nsamples transpose.
+        dd.set_item("design", matrix(py, out.design.clone(), p, nlib)?)?;
+        dd.set_item("ave_log_cpm", vector(py, diag.disp.ave_logcpm))?;
+        dd.set_item("trended_disp", vector(py, diag.disp.trended))?;
+        dd.set_item("tagwise_disp", vector(py, diag.disp.tagwise))?;
+        dd.set_item("common_disp", diag.disp.common)?;
+        dd.set_item("disp_prior_df", diag.disp.prior_df)?;
+        let q = diag.ql;
+        let nk = q.s2.len();
+        dd.set_item("fit_dispersion", q.dispersion)?;
+        dd.set_item("ave_ql_dispersion", q.ave_ql_dispersion)?;
+        dd.set_item("df_residual", q.df_residual)?;
+        dd.set_item("s2", vector(py, q.s2))?;
+        dd.set_item("s2_prior", vector(py, q.s2_prior))?;
+        dd.set_item("s2_post", vector(py, q.s2_post))?;
+        dd.set_item("df_residual_adj", vector(py, q.df_residual_adj))?;
+        dd.set_item("df_prior", vector(py, q.df_prior))?;
+        dd.set_item("coefficients", matrix(py, q.coefficients, nk, p)?)?;
+        dd.set_item(
+            "unshrunk_coefficients",
+            matrix(py, q.unshrunk_coefficients, nk, p)?,
+        )?;
+        dd.set_item("fitted", matrix(py, q.fitted, nk, nlib)?)?;
+        d.set_item("diag", dd)?;
+    }
     d.set_item("design_cols", out.design_cols)?;
     d.set_item("kept", out.kept)?;
     Ok(d)
+}
+
+/// A row-major `rows x cols` numpy array.
+fn matrix<'py>(
+    py: Python<'py>,
+    data: Vec<f64>,
+    rows: usize,
+    cols: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let a = numpy::ndarray::Array2::from_shape_vec((rows, cols), data)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(a.into_pyarray(py).into_any())
 }
 
 #[pymodule]

@@ -91,7 +91,11 @@ fn dnrm2(x: &[f64]) -> f64 {
         if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
             let amed = amed.sqrt();
             let asml = asml.sqrt() / ssml;
-            let (ymin, ymax) = if asml > amed { (amed, asml) } else { (asml, amed) };
+            let (ymin, ymax) = if asml > amed {
+                (amed, asml)
+            } else {
+                (asml, amed)
+            };
             scl = 1.0;
             sumsq = ymax * ymax * (1.0 + (ymin / ymax) * (ymin / ymax));
         } else {
@@ -169,7 +173,11 @@ fn dlarf1f_left(v: &[f64], tau: f64, c: &mut [f64], m: usize, n: usize, ldc: usi
     // ILADLC: the last column of C(1:lastv, :) with a nonzero.
     let mut lastc = n;
     if n > 0 && c[(n - 1) * ldc] == 0.0 && c[(n - 1) * ldc + lastv - 1] == 0.0 {
-        while lastc > 0 && c[(lastc - 1) * ldc..(lastc - 1) * ldc + lastv].iter().all(|&e| e == 0.0) {
+        while lastc > 0
+            && c[(lastc - 1) * ldc..(lastc - 1) * ldc + lastv]
+                .iter()
+                .all(|&e| e == 0.0)
+        {
             lastc -= 1;
         }
     }

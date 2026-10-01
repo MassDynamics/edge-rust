@@ -40,7 +40,8 @@ def run(
     sample_info: pd.DataFrame,
     comparisons: pd.DataFrame,
     params: dict,
-) -> pd.DataFrame:
+    diagnostics: bool = False,
+):
     """Run the edgeR QL engine and return the production output table.
 
     counts: genes x samples, index = gene ids, columns = sample ids; finite, non-negative.
@@ -51,6 +52,8 @@ def run(
     params: ``condition_col`` (default "condition"), ``control_cols`` (``{Column, Type}``),
         ``edger_norm_method`` (default "TMM"), ``entity_type`` (default "gene"),
         ``mode`` ("discovery" or "anova").
+
+    diagnostics: also return the fit's intermediates, as ``(table, diag)``; see ``_diag``.
 
     Raises ValueError with the production message when the engine refuses the input.
     """
@@ -83,6 +86,7 @@ def run(
         cmps,
         norm_method=params.get("edger_norm_method", "TMM"),
         entity_type=params.get("entity_type", "gene"),
+        diagnostics=diagnostics,
     )
 
     out = {
@@ -115,4 +119,68 @@ def run(
         table["GroupId"] = table["GroupId"].astype(np.int64)
     if params.get("mode") == "anova":
         table["GroupId"] = table["GroupId"].astype(str)
+    if diagnostics:
+        return table, _diag(res, gene_ids, sample_ids)
     return table
+
+
+def _diag(res: dict, gene_ids: list[str], sample_ids: list[str]) -> dict:
+    """The fit's intermediates, with the column names of the R reference's ``r_edger.diag/``.
+
+    ``samples``: replicate, lib_size (after filterByExpr), norm_factor, eff_lib_size.
+    ``genes`` (kept genes, input order): ave_log_cpm, s2_post, s2_prior, df_residual_adj,
+    df_residual, df_prior, ``coef_<col>`` (unshrunk) and ``coefshr_<col>`` (prior count 0.125),
+    natural log scale. ``design``: replicate and the design columns. ``disp``: trended_disp,
+    tagwise_disp (estimateDisp). ``fitted``: fitted means, kept genes x samples. ``scalars``:
+    fit_dispersion, ave_ql_dispersion, df_residual_total, top_proportion, design_columns,
+    common_disp, disp_prior_df.
+    """
+    d = res["diag"]
+    cols = list(res["design_cols"])
+    ids = [gene_ids[i] for i in d["kept_idx"]]
+    if all(g.lstrip("-").isdigit() for g in ids):
+        ids = [int(g) for g in ids]
+    samples = pd.DataFrame(
+        {"replicate": sample_ids, "lib_size": d["lib_size"], "norm_factor": d["norm_factor"]}
+    )
+    samples["eff_lib_size"] = samples["lib_size"] * samples["norm_factor"]
+    nk = len(ids)
+    genes = pd.DataFrame(
+        {
+            "id": ids,
+            "ave_log_cpm": d["ave_log_cpm"],
+            "s2_post": d["s2_post"],
+            "s2_prior": d["s2_prior"],
+            "df_residual_adj": d["df_residual_adj"],
+            "df_residual": np.full(nk, d["df_residual"]),
+            "df_prior": d["df_prior"],
+        }
+    )
+    for k, c in enumerate(cols):
+        genes[f"coef_{c}"] = d["unshrunk_coefficients"][:, k]
+    for k, c in enumerate(cols):
+        genes[f"coefshr_{c}"] = d["coefficients"][:, k]
+    design = pd.DataFrame(d["design"].T, columns=cols)
+    design.insert(0, "replicate", sample_ids)
+    disp = pd.DataFrame(
+        {"id": ids, "trended_disp": d["trended_disp"], "tagwise_disp": d["tagwise_disp"]}
+    )
+    fitted = pd.DataFrame(d["fitted"], index=pd.Index(ids, name="id"), columns=sample_ids)
+    dft = d["df_residual"] * nk
+    scalars = {
+        "fit_dispersion": d["fit_dispersion"],
+        "ave_ql_dispersion": d["ave_ql_dispersion"],
+        "df_residual_total": int(dft) if float(dft).is_integer() else dft,
+        "top_proportion": None,  # glmQLFit(legacy = FALSE) leaves it NULL
+        "design_columns": cols,
+        "common_disp": d["common_disp"],
+        "disp_prior_df": d["disp_prior_df"],
+    }
+    return {
+        "samples": samples,
+        "genes": genes,
+        "design": design,
+        "disp": disp,
+        "fitted": fitted,
+        "scalars": scalars,
+    }
