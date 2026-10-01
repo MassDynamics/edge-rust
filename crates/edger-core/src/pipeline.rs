@@ -14,6 +14,7 @@ use crate::filter::filter_by_expr;
 use crate::norm::calc_norm_factors;
 use crate::ql::glm_ql_fit;
 use crate::qltest::glm_ql_ftest;
+use rnum::glibm::ln;
 use rnum::linpack::qr_decompose;
 use rnum::nmath::qt;
 use rnum::{LimmaError, Result};
@@ -252,7 +253,7 @@ pub fn run_edger(input: &EdgerInput) -> Result<EdgerOutput> {
         .zip(&nf.norm_factors)
         .map(|(a, b)| a * b)
         .collect();
-    let offset: Vec<f64> = lib_eff.iter().map(|v| v.ln()).collect();
+    let offset: Vec<f64> = lib_eff.iter().map(|v| ln(*v)).collect();
 
     // No residual df: estimateDisp returns NA dispersions and glmQLFit then fails in an `if`.
     if p >= nlib {

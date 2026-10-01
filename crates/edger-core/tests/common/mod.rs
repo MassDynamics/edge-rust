@@ -212,7 +212,7 @@ pub fn fixture(run: &str) -> Fixture {
         let nf = nt.f64s("norm_factor");
         lib_eff = lib.iter().zip(&nf).map(|(a, b)| a * b).collect();
     }
-    let offset = lib_eff.iter().map(|v| v.ln()).collect();
+    let offset = lib_eff.iter().map(|&v| rnum::glibm::ln(v)).collect();
     Fixture {
         sample_ids,
         all_ids,

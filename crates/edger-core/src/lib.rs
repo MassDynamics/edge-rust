@@ -11,3 +11,5 @@ pub mod pipeline;
 pub mod ql;
 mod ql_weights;
 pub mod qltest;
+#[cfg(test)]
+mod lev_replay;

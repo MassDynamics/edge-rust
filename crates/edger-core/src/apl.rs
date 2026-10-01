@@ -4,6 +4,7 @@
 
 use crate::glm::{compute_xtwx, glm_fit, GlmFit};
 use crate::lapack::dsytf2_upper;
+use rnum::glibm::ln;
 use rnum::nmath::lgammafn;
 
 /// `compute_adj_profile_ll(do_adjust = TRUE)` for gene-major `y` and `mu` and one dispersion
@@ -17,7 +18,7 @@ pub(crate) fn compute_apl(
     p: usize,
 ) -> Vec<f64> {
     let low_value: f64 = 1e-10;
-    let log_low_value = low_value.ln();
+    let log_low_value = ln(low_value);
     let mut zw = vec![0.0; nlib];
     let mut xtwx = vec![0.0; p * p];
     let mut out = Vec::with_capacity(disp.len());
@@ -34,12 +35,12 @@ pub(crate) fn compute_apl(
             let cury = yr[lib];
             let loglik = if d > 0.0 {
                 let r = 1.0 / d;
-                let logmur = (curu + r).ln();
-                cury * curu.ln() - cury * logmur + r * r.ln() - r * logmur + lgammafn(cury + r)
+                let logmur = ln(curu + r);
+                cury * ln(curu) - cury * logmur + r * ln(r) - r * logmur + lgammafn(cury + r)
                     - lgammafn(cury + 1.0)
                     - lgammafn(r)
             } else {
-                cury * curu.ln() - curu - lgammafn(cury + 1.0)
+                cury * ln(curu) - curu - lgammafn(cury + 1.0)
             };
             o += loglik;
             zw[lib] = curu / (1.0 + d * curu);
@@ -49,7 +50,7 @@ pub(crate) fn compute_apl(
             for v in &zw {
                 adj += v;
             }
-            adj = adj.abs().ln() / 2.0;
+            adj = ln(adj.abs()) / 2.0;
         } else {
             compute_xtwx(nlib, p, x, &zw, &mut xtwx);
             dsytf2_upper(&mut xtwx, p);
@@ -58,7 +59,7 @@ pub(crate) fn compute_apl(
                 adj = if cur < low_value {
                     adj + log_low_value
                 } else {
-                    adj + cur.ln() * 0.5
+                    adj + ln(cur) * 0.5
                 };
             }
         }

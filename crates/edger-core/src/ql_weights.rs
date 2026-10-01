@@ -3,7 +3,10 @@
 //! `anbinomdevc_1/2`, `knbinomdevc_1/2`, `compute_weight`). The coefficient tables are copied
 //! verbatim from the C source. The `phi >= 4.001` exact-sum branch is not ported: the
 //! `legacy = FALSE` path caps the NB dispersion at 4 before it gets here.
+
 #![allow(clippy::excessive_precision)]
+
+use rnum::glibm::ln;
 
 const LOW_BOUND: f64 = 1e-32;
 
@@ -66,7 +69,7 @@ fn pois_alpha(mu: f64) -> f64 {
         return 0.0;
     } else if mu < 0.0200 {
         x = 2.0 * mu / 0.02 - 1.0;
-        logmu = mu.ln();
+        logmu = ln(mu);
         it = 0;
     } else {
         logmu = 0.0;
@@ -99,7 +102,7 @@ fn pois_kappa(mu: f64) -> f64 {
         return 0.0;
     } else if mu < 0.0200 {
         x = 2.0 * mu / 0.02 - 1.0;
-        logmu = mu.ln() / (1.0 + mu.ln());
+        logmu = ln(mu) / (1.0 + ln(mu));
         it = 0;
     } else {
         logmu = 0.0;
@@ -254,7 +257,7 @@ fn anbinomdevc_2(mu: f64, phi: f64) -> f64 {
         let (x, it) = case2_low(mu, false);
         let mut out = series2::<10>(&NB_A_2_1, it, x, y);
         if mu < 0.01 {
-            let logmu = mu.ln();
+            let logmu = ln(mu);
             out *= logmu / ((1.0 + logmu) * (1.0 + logmu));
         }
         out
@@ -275,7 +278,7 @@ fn knbinomdevc_2(mu: f64, phi: f64) -> f64 {
         let (x, it) = case2_low(mu, true);
         let mut out = series2::<10>(&NB_K_2_1, it, x, y);
         if mu < 0.01 {
-            let logmu = mu.ln() / (1.0 + mu.ln());
+            let logmu = ln(mu) / (1.0 + ln(mu));
             out = out * mu * logmu * logmu;
         }
         out

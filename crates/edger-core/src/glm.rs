@@ -10,8 +10,8 @@
 //! on this path compresses them to a row), and dispersions are one value per gene. Observation
 //! weights are always 1 on the Mass Dynamics path and are dropped.
 
-use crate::lapack::{dpotrf_upper, dpotrs_upper, lu_solve};
-use rnum::linpack::qr_decompose;
+use crate::lapack::{dgeqr2, dorm2r_lt, dpotrf_upper, dpotrs_upper, dtrtrs_upper, lu_solve};
+use rnum::glibm::{exp, ln};
 
 /// `compute_unit_nb_deviance`. The C's `2/3*resid` is integer division, i.e. zero.
 pub fn unit_nb_deviance(y: f64, mu: f64, phi: f64) -> f64 {
@@ -19,16 +19,16 @@ pub fn unit_nb_deviance(y: f64, mu: f64, phi: f64) -> f64 {
     let mu = mu + 1e-8;
     let out = if phi < 1e-4 {
         let resid = y - mu;
-        2.0 * (y * (y / mu).ln()
+        2.0 * (y * ln(y / mu)
             - resid
             - 0.5 * resid * resid * phi * (1.0 + phi * (0.0 * resid - y)))
     } else {
         let product = mu * phi;
         if product > 1e6 {
-            2.0 * ((y - mu) / mu - (y / mu).ln()) * mu / (1.0 + product)
+            2.0 * ((y - mu) / mu - ln(y / mu)) * mu / (1.0 + product)
         } else {
             let invphi = 1.0 / phi;
-            2.0 * (y * (y / mu).ln() + (y + invphi) * ((mu + invphi) / (y + invphi)).ln())
+            2.0 * (y * ln(y / mu) + (y + invphi) * ln((mu + invphi) / (y + invphi)))
         }
     };
     if out.is_nan() {
@@ -57,12 +57,12 @@ pub(crate) fn one_group(
         let mut totweight = 0.0;
         for lib in 0..n {
             if y[lib] > 1e-10 {
-                cur += y[lib] / off[lib].exp();
+                cur += y[lib] / exp(off[lib]);
                 allzero = false;
             }
             totweight += 1.0;
         }
-        cur = (cur / totweight).ln();
+        cur = ln(cur / totweight);
     } else {
         cur = start;
         allzero = !y.iter().any(|&v| v > 1e-10);
@@ -72,15 +72,15 @@ pub(crate) fn one_group(
     }
     if disp == 0.0 {
         // fit_one_group_mat's Poisson shortcut.
-        let sl: f64 = off.iter().map(|o| o.exp()).sum();
+        let sl: f64 = off.iter().map(|o| exp(*o)).sum();
         let sc: f64 = y.iter().sum();
-        return (sc / sl).ln();
+        return ln(sc / sl);
     }
     for _ in 0..maxit {
         let mut dl = 0.0;
         let mut info = 0.0;
         for lib in 0..n {
-            let mu = (cur + off[lib]).exp();
+            let mu = exp(cur + off[lib]);
             let den = 1.0 + mu * disp;
             dl += (y[lib] - mu) / den;
             info += mu / den;
@@ -181,7 +181,7 @@ pub(crate) fn add_prior_count(
 /// log offset `log(lib + 2 * prior)`.
 fn prior_offsets(offset: &[f64], pc: f64) -> (Vec<f64>, Vec<f64>) {
     let n = offset.len();
-    let lib: Vec<f64> = offset.iter().map(|o| o.exp()).collect();
+    let lib: Vec<f64> = offset.iter().map(|o| exp(*o)).collect();
     let mut ave = 0.0;
     for l in &lib {
         ave += l;
@@ -191,7 +191,7 @@ fn prior_offsets(offset: &[f64], pc: f64) -> (Vec<f64>, Vec<f64>) {
     let off = lib
         .iter()
         .zip(&prior)
-        .map(|(l, p)| (l + 2.0 * p).ln())
+        .map(|(l, p)| ln(l + 2.0 * p))
         .collect();
     (prior, off)
 }
@@ -204,9 +204,9 @@ pub fn ave_log_cpm(
     disp: f64,
     prior_count: f64,
 ) -> Vec<f64> {
-    let offset: Vec<f64> = lib_size.iter().map(|l| l.ln()).collect();
+    let offset: Vec<f64> = lib_size.iter().map(|l| ln(*l)).collect();
     let (prior, off) = prior_offsets(&offset, prior_count);
-    let lnm = 1e6f64.ln();
+    let lnm = ln(1e6f64);
     let ln2 = std::f64::consts::LN_2;
     y.chunks(nlib)
         .map(|r| {
@@ -275,7 +275,7 @@ fn oneway(
         }
         let mut dev = 0.0;
         for j in 0..nlib {
-            let mu = (offset[j] + beta[group[j]]).exp();
+            let mu = exp(offset[j] + beta[group[j]]);
             fitted[gene * nlib + j] = mu;
             dev += unit_nb_deviance(row[j], mu, disp[gene]);
         }
@@ -294,27 +294,6 @@ fn oneway(
     }
 }
 
-/// Least-squares solution of `design %*% b = 1` (dgeqrf/dormqr/dtrtrs in `get_leven_start`; the
-/// per-gene null start is that vector scaled by the gene's log mean ratio).
-fn ls_ones(x: &[f64], n: usize, p: usize) -> Vec<f64> {
-    let qr = qr_decompose(x, n, p, 1e-7);
-    let qty = qr.qty(&vec![1.0; n]);
-    let k = qr.rank;
-    let mut b = qty[..k].to_vec();
-    for j in (0..k).rev() {
-        b[j] /= qr.qr[j * n + j];
-        let t = b[j];
-        for (i, bi) in b[..j].iter_mut().enumerate() {
-            *bi -= t * qr.qr[j * n + i];
-        }
-    }
-    let mut out = vec![0.0; p];
-    for (jj, &v) in b.iter().enumerate() {
-        out[qr.pivot[jj]] = v;
-    }
-    out
-}
-
 #[allow(clippy::too_many_arguments)]
 fn levenberg(
     y: &[f64],
@@ -328,11 +307,16 @@ fn levenberg(
     tol: f64,
 ) -> GlmFit {
     let ngenes = disp.len();
-    let b1 = if start.is_none() {
-        ls_ones(x, nlib, p)
+    // get_leven_start: QR of the design once, then per gene the least-squares fit of a constant
+    // log mean ratio, Q' and the triangular solve done per gene as in the C.
+    let (qr, tau) = if start.is_none() {
+        let mut qr = x.to_vec();
+        let tau = dgeqr2(&mut qr, nlib, p);
+        (qr, tau)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
+    let lib_n: Vec<f64> = offset.iter().map(|&o| exp(o)).collect();
     let mut coefficients = vec![0.0; ngenes * p];
     let mut fitted = vec![0.0; ngenes * nlib];
     let mut deviance = vec![0.0; ngenes];
@@ -346,13 +330,18 @@ fn levenberg(
                 let mut sw = 0.0;
                 let mut se = 0.0;
                 for lib in 0..nlib {
-                    let cur_n = offset[lib].exp();
+                    let cur_n = lib_n[lib];
                     let cw = cur_n / (1.0 + d * cur_n);
                     se += row[lib] * cw / cur_n;
                     sw += cw;
                 }
-                let c = (se / sw).ln();
-                b1.iter().map(|b| c * b).collect()
+                let mut effects = vec![ln(se / sw); nlib];
+                dorm2r_lt(&qr, nlib, &tau, &mut effects);
+                if !dtrtrs_upper(&qr, nlib, p, &mut effects) {
+                    effects.iter_mut().for_each(|e| *e = f64::NAN);
+                }
+                effects.truncate(p);
+                effects
             }
         };
         let mut mu = vec![0.0; nlib];
@@ -409,7 +398,7 @@ fn autofill(beta: &[f64], offset: &[f64], x: &[f64], mu: &mut [f64]) {
         }
     }
     for m in mu.iter_mut() {
-        *m = m.exp();
+        *m = exp(*m);
     }
 }
 
@@ -546,6 +535,20 @@ fn fit_leven_vec(
 }
 
 #[cfg(test)]
+pub(crate) fn levenberg_given(y: &[f64], nlib: usize, x: &[f64], p: usize, offset: &[f64], disp: &[f64], start: &[f64]) -> GlmFit {
+    levenberg(y, nlib, x, p, offset, disp, Some(start), 250, 1e-6)
+}
+#[cfg(test)]
+pub(crate) fn null_start(y: &[f64], nlib: usize, x: &[f64], p: usize, offset: &[f64], disp: &[f64]) -> Vec<f64> {
+    // a zero-iteration Levenberg returns the start
+    levenberg(y, nlib, x, p, offset, disp, None, 0, 1e-6).coefficients
+}
+#[cfg(test)]
+pub(crate) fn autofill_pub(beta: &[f64], offset: &[f64], x: &[f64], mu: &mut [f64]) {
+    autofill(beta, offset, x, mu)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -558,7 +561,7 @@ mod tests {
         let x = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         let off: Vec<f64> = [1e6, 1.2e6, 0.9e6, 1.1e6, 1e6, 0.95e6]
             .iter()
-            .map(|l: &f64| l.ln())
+            .map(|l: &f64| ln(*l))
             .collect();
         let disp = [0.1, 0.2];
         let a = glm_fit(&y, 6, &x, 2, &off, &disp, None);

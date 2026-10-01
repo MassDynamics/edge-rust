@@ -25,7 +25,9 @@
 pub mod contrasts;
 pub mod ebayes;
 pub mod fit;
+pub mod glibm;
 pub mod hist;
+pub mod lbfgsb;
 pub mod linalg;
 pub mod linpack;
 pub mod locfit;

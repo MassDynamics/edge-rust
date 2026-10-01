@@ -2,6 +2,7 @@
 //! offers except `TMMwsp`: `TMM` (`.calcFactorTMM`), `RLE` (`.calcFactorRLE`), `upperquartile`
 //! (`.calcFactorQuantile`) and `none`, as the reference's `plain_norm_factors` writes them out.
 
+use rnum::glibm::{exp, ln};
 use rnum::linalg::{mean, median, quantile7, rank_average};
 use rnum::{LimmaError, Result};
 
@@ -109,7 +110,7 @@ pub fn calc_norm_factors(
         "RLE" => {
             let gm: Vec<f64> = x
                 .iter()
-                .map(|r| (r.iter().map(|v| v.ln()).sum::<f64>() / nlib as f64).exp())
+                .map(|r| exp(r.iter().map(|v| ln(*v)).sum::<f64>() / nlib as f64))
                 .collect();
             (0..nlib)
                 .map(|j| {
@@ -126,7 +127,7 @@ pub fn calc_norm_factors(
         "upperquartile" => q75(),
         _ => vec![1.0; nlib],
     };
-    let lm = mean(&f.iter().map(|v| v.ln()).collect::<Vec<_>>()).exp();
+    let lm = exp(mean(&f.iter().map(|v| ln(*v)).collect::<Vec<_>>()));
     Ok(NormFactors {
         norm_factors: f.iter().map(|v| v / lm).collect(),
         ref_column,

@@ -1,32 +1,245 @@
 //! The few dense LAPACK kernels edgeR's C code calls, ported from R 4.5.0's bundled
-//! `src/modules/lapack/dlapack.f`: Cholesky (`DPOTRF` upper, `DPOTRS`) for `fit_leven_vec` in
-//! `edgeR/src/glm.c`, the Bunch-Kaufman factorisation (`DSYTF2` upper, which `DSYTRF` runs for
-//! n < 64) for `compute_adj_profile_ll` in `edgeR/src/compute_apl.c`, and an LU solve with partial
+//! `src/modules/lapack/dlapack.f`: Cholesky (`DPOTRF` upper, `DPOTRS`) for `fit_leven_vec` and
+//! Householder QR (`DGEQRF`, `DORMQR`, `DTRTRS`) for `get_leven_start` in `edgeR/src/glm.c`, the
+//! Bunch-Kaufman factorisation (`DSYTF2` upper, which `DSYTRF` runs for n < 64) for `compute_adj_profile_ll` in `edgeR/src/compute_apl.c`, and an LU solve with partial
 //! pivoting for `solve(designunique, t(beta))` in `edgeR/R/mglmOneWay.R`.
 //!
 //! All matrices are column-major `n x n`.
 
 /// `DPOTRF('U')`: overwrite the upper triangle of `a` with `U` such that `A = U'U`. Returns
-/// `false` when a pivot is not positive (LAPACK's `info > 0`). The unblocked column order of
-/// `DPOTF2`; R's `DPOTRF2` recursion agrees to rounding.
+/// `false` when a pivot is not positive (LAPACK's `info > 0`). For n < 64 LAPACK 3.12's `DPOTRF`
+/// runs the recursive `DPOTRF2`, whose `DTRSM` / `DSYRK` updates round differently from the
+/// column order of `DPOTF2`, so this follows the recursion.
 pub(crate) fn dpotrf_upper(a: &mut [f64], n: usize) -> bool {
-    for j in 0..n {
-        let mut ajj = a[j * n + j];
-        for k in 0..j {
-            ajj -= a[j * n + k] * a[j * n + k];
-        }
-        if ajj <= 0.0 || ajj.is_nan() {
-            a[j * n + j] = ajj;
+    dpotrf2_upper(a, n, 0, n)
+}
+
+/// `DPOTRF2('U')` on the `n x n` block of `a` (leading dimension `lda`) starting at `(o, o)`.
+fn dpotrf2_upper(a: &mut [f64], lda: usize, o: usize, n: usize) -> bool {
+    let at = |i: usize, j: usize| (o + j) * lda + o + i;
+    if n == 0 {
+        return true;
+    }
+    if n == 1 {
+        let v = a[at(0, 0)];
+        if v <= 0.0 || v.is_nan() {
             return false;
         }
-        let ajj = ajj.sqrt();
-        a[j * n + j] = ajj;
-        for c in j + 1..n {
-            let mut s = a[c * n + j];
-            for k in 0..j {
-                s -= a[j * n + k] * a[c * n + k];
+        a[at(0, 0)] = v.sqrt();
+        return true;
+    }
+    let n1 = n / 2;
+    let n2 = n - n1;
+    if !dpotrf2_upper(a, lda, o, n1) {
+        return false;
+    }
+    // DTRSM('L', 'U', 'T', 'N', n1, n2, 1, A11, A12): A12 := inv(A11') A12.
+    for j in 0..n2 {
+        for i in 0..n1 {
+            let mut t = a[at(i, n1 + j)];
+            for k in 0..i {
+                t -= a[at(k, i)] * a[at(k, n1 + j)];
             }
-            a[c * n + j] = s / ajj;
+            a[at(i, n1 + j)] = t / a[at(i, i)];
+        }
+    }
+    // DSYRK('U', 'T', n2, n1, -1, A12, 1, A22): A22 := A22 - A12' A12.
+    for j in 0..n2 {
+        for i in 0..=j {
+            let mut t = 0.0;
+            for l in 0..n1 {
+                t += a[at(l, n1 + i)] * a[at(l, n1 + j)];
+            }
+            a[at(n1 + i, n1 + j)] += -t;
+        }
+    }
+    dpotrf2_upper(a, lda, o + n1, n2)
+}
+
+/// Reference BLAS `DNRM2` as of LAPACK 3.10 (Blue's scaled sum of squares), unit stride.
+fn dnrm2(x: &[f64]) -> f64 {
+    let tsml = 2f64.powi(-511);
+    let tbig = 2f64.powi(486);
+    let ssml = 2f64.powi(537);
+    let sbig = 2f64.powi(-538);
+    if x.is_empty() {
+        return 0.0;
+    }
+    let (mut asml, mut amed, mut abig) = (0.0f64, 0.0f64, 0.0f64);
+    let mut notbig = true;
+    for &v in x {
+        let ax = v.abs();
+        if ax > tbig {
+            abig += (ax * sbig) * (ax * sbig);
+            notbig = false;
+        } else if ax < tsml {
+            if notbig {
+                asml += (ax * ssml) * (ax * ssml);
+            }
+        } else {
+            amed += ax * ax;
+        }
+    }
+    let (scl, sumsq);
+    if abig > 0.0 {
+        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
+            abig += (amed * sbig) * sbig;
+        }
+        scl = 1.0 / sbig;
+        sumsq = abig;
+    } else if asml > 0.0 {
+        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
+            let amed = amed.sqrt();
+            let asml = asml.sqrt() / ssml;
+            let (ymin, ymax) = if asml > amed { (amed, asml) } else { (asml, amed) };
+            scl = 1.0;
+            sumsq = ymax * ymax * (1.0 + (ymin / ymax) * (ymin / ymax));
+        } else {
+            scl = 1.0 / ssml;
+            sumsq = asml;
+        }
+    } else {
+        scl = 1.0;
+        sumsq = amed;
+    }
+    scl * sumsq.sqrt()
+}
+
+/// `DLAPY2`: `sqrt(x^2 + y^2)` avoiding overflow.
+fn dlapy2(x: f64, y: f64) -> f64 {
+    if x.is_nan() || y.is_nan() {
+        return if y.is_nan() { y } else { x };
+    }
+    let w = x.abs().max(y.abs());
+    let z = x.abs().min(y.abs());
+    if z == 0.0 || w > f64::MAX {
+        w
+    } else {
+        w * (1.0 + (z / w) * (z / w)).sqrt()
+    }
+}
+
+/// `DLARFG`: generate the elementary reflector for `(alpha, x)`; returns `tau`, overwrites
+/// `alpha` with `beta` and `x` with `v(2:n)`.
+fn dlarfg(alpha: &mut f64, x: &mut [f64]) -> f64 {
+    if x.is_empty() {
+        return 0.0;
+    }
+    let mut xnorm = dnrm2(x);
+    if xnorm == 0.0 {
+        return 0.0;
+    }
+    let mut beta = -dlapy2(*alpha, xnorm).copysign(*alpha);
+    let safmin = f64::MIN_POSITIVE / f64::EPSILON * 2.0; // DLAMCH('S') / DLAMCH('E')
+    let mut knt = 0;
+    if beta.abs() < safmin {
+        let rsafmn = 1.0 / safmin;
+        loop {
+            knt += 1;
+            x.iter_mut().for_each(|v| *v *= rsafmn);
+            beta *= rsafmn;
+            *alpha *= rsafmn;
+            if !(beta.abs() < safmin && knt < 20) {
+                break;
+            }
+        }
+        xnorm = dnrm2(x);
+        beta = -dlapy2(*alpha, xnorm).copysign(*alpha);
+    }
+    let tau = (beta - *alpha) / beta;
+    let s = 1.0 / (*alpha - beta);
+    x.iter_mut().for_each(|v| *v *= s);
+    for _ in 0..knt {
+        beta *= safmin;
+    }
+    *alpha = beta;
+    tau
+}
+
+/// `DLARF1F('L')`: apply `H = I - tau v v'` (with `v(1) = 1` implied, `v[0]` unread) from the
+/// left to the `m x n` matrix `c` (leading dimension `ldc`).
+fn dlarf1f_left(v: &[f64], tau: f64, c: &mut [f64], m: usize, n: usize, ldc: usize) {
+    if tau == 0.0 {
+        return;
+    }
+    let mut lastv = m;
+    while lastv > 1 && v[lastv - 1] == 0.0 {
+        lastv -= 1;
+    }
+    // ILADLC: the last column of C(1:lastv, :) with a nonzero.
+    let mut lastc = n;
+    if n > 0 && c[(n - 1) * ldc] == 0.0 && c[(n - 1) * ldc + lastv - 1] == 0.0 {
+        while lastc > 0 && c[(lastc - 1) * ldc..(lastc - 1) * ldc + lastv].iter().all(|&e| e == 0.0) {
+            lastc -= 1;
+        }
+    }
+    if lastc == 0 {
+        return;
+    }
+    if lastv == 1 {
+        for j in 0..lastc {
+            c[j * ldc] *= 1.0 - tau;
+        }
+        return;
+    }
+    let mut work = vec![0.0; lastc];
+    for (j, w) in work.iter_mut().enumerate() {
+        let mut t = 0.0;
+        for i in 1..lastv {
+            t += c[j * ldc + i] * v[i];
+        }
+        *w = t + c[j * ldc];
+    }
+    for (j, w) in work.iter().enumerate() {
+        c[j * ldc] += -tau * w;
+    }
+    for (j, w) in work.iter().enumerate() {
+        if *w != 0.0 {
+            let t = -tau * w;
+            for i in 1..lastv {
+                c[j * ldc + i] += v[i] * t;
+            }
+        }
+    }
+}
+
+/// `DGEQR2`: Householder QR of the column-major `m x n` matrix `a` in place (what `DGEQRF` runs
+/// when min(m, n) <= 32); returns `tau`.
+pub(crate) fn dgeqr2(a: &mut [f64], m: usize, n: usize) -> Vec<f64> {
+    let k = m.min(n);
+    let mut tau = vec![0.0; k];
+    for i in 0..k {
+        let (head, rest) = a.split_at_mut((i + 1) * m);
+        let col = &mut head[i * m + i..i * m + m];
+        let (alpha, x) = col.split_first_mut().unwrap();
+        tau[i] = dlarfg(alpha, x);
+        if i + 1 < n {
+            dlarf1f_left(col, tau[i], &mut rest[i..], m - i, n - i - 1, m);
+        }
+    }
+    tau
+}
+
+/// `DORMQR('L', 'T')` for one right-hand side (`DORM2R` when k <= 32): `c := Q' c`.
+pub(crate) fn dorm2r_lt(qr: &[f64], m: usize, tau: &[f64], c: &mut [f64]) {
+    for (i, &t) in tau.iter().enumerate() {
+        dlarf1f_left(&qr[i * m + i..i * m + m], t, &mut c[i..], m - i, 1, m);
+    }
+}
+
+/// `DTRTRS('U', 'N', 'N')` for one right-hand side on the leading `k x k` upper triangle of `a`
+/// (leading dimension `lda`): solve `R x = b` in place. Returns `false` on a zero diagonal.
+pub(crate) fn dtrtrs_upper(a: &[f64], lda: usize, k: usize, b: &mut [f64]) -> bool {
+    if (0..k).any(|i| a[i * lda + i] == 0.0) {
+        return false;
+    }
+    for j in (0..k).rev() {
+        if b[j] != 0.0 {
+            b[j] /= a[j * lda + j];
+            let bj = b[j];
+            for i in 0..j {
+                b[i] -= bj * a[j * lda + i];
+            }
         }
     }
     true
