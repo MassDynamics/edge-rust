@@ -1,0 +1,6 @@
+row,condition10h - condition24h,condition10h - condition2h,condition10h - condition6h,condition24h - condition2h,condition24h - condition6h,condition2h - condition6h
+"condition10h",1,1,1,0,0,0
+"condition24h",-1,0,0,1,1,0
+"condition2h",0,-1,0,-1,0,1
+"condition6h",0,0,-1,0,-1,-1
+"numcov",0,0,0,0,0,0

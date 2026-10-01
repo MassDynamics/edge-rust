@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/rnum", "crates/edger-core", "crates/edger-py"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = "fat"

@@ -1,0 +1,15 @@
+[package]
+name = "rnum"
+description = "R-faithful numerics shared by edge-rust and deseq2-rust: R nmath, LINPACK QR, lowess, splines, optimize/uniroot, limma squeezeVar/fitFDist (copied from md-limma limma-core), plus R RNG, locfit, loess and L-BFGS-B."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+
+[dev-dependencies]
+csv = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

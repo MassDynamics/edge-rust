@@ -1,0 +1,9 @@
+{
+  "case": "conditions_only",
+  "n_rows": 600,
+  "n_samples": 24,
+  "limma": "3.68.5",
+  "r": "R version 4.5.0 (2025-04-11)",
+  "conditions": ["10h", "24h", "2h", "6h"],
+  "contrasts": ["condition10h - condition24h", "condition10h - condition2h", "condition10h - condition6h", "condition24h - condition2h", "condition24h - condition6h", "condition2h - condition6h"]
+}

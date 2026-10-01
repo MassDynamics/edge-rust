@@ -1,0 +1,5 @@
+row,condition10h,condition24h,condition2h,condition6h
+"condition10h",0.166666666666667,0,0,0
+"condition24h",0,0.166666666666667,0,0
+"condition2h",0,0,0.166666666666667,0
+"condition6h",0,0,0,0.166666666666667
