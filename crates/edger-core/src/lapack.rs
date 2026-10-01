@@ -6,6 +6,8 @@
 //!
 //! All matrices are column-major `n x n`.
 
+use rnum::linpack::dnrm2;
+
 /// `DPOTRF('U')`: overwrite the upper triangle of `a` with `U` such that `A = U'U`. Returns
 /// `false` when a pivot is not positive (LAPACK's `info > 0`). For n < 64 LAPACK 3.12's `DPOTRF`
 /// runs the recursive `DPOTRF2`, whose `DTRSM` / `DSYRK` updates round differently from the
@@ -54,59 +56,6 @@ fn dpotrf2_upper(a: &mut [f64], lda: usize, o: usize, n: usize) -> bool {
         }
     }
     dpotrf2_upper(a, lda, o + n1, n2)
-}
-
-/// Reference BLAS `DNRM2` as of LAPACK 3.10 (Blue's scaled sum of squares), unit stride.
-fn dnrm2(x: &[f64]) -> f64 {
-    let tsml = 2f64.powi(-511);
-    let tbig = 2f64.powi(486);
-    let ssml = 2f64.powi(537);
-    let sbig = 2f64.powi(-538);
-    if x.is_empty() {
-        return 0.0;
-    }
-    let (mut asml, mut amed, mut abig) = (0.0f64, 0.0f64, 0.0f64);
-    let mut notbig = true;
-    for &v in x {
-        let ax = v.abs();
-        if ax > tbig {
-            abig += (ax * sbig) * (ax * sbig);
-            notbig = false;
-        } else if ax < tsml {
-            if notbig {
-                asml += (ax * ssml) * (ax * ssml);
-            }
-        } else {
-            amed += ax * ax;
-        }
-    }
-    let (scl, sumsq);
-    if abig > 0.0 {
-        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
-            abig += (amed * sbig) * sbig;
-        }
-        scl = 1.0 / sbig;
-        sumsq = abig;
-    } else if asml > 0.0 {
-        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
-            let amed = amed.sqrt();
-            let asml = asml.sqrt() / ssml;
-            let (ymin, ymax) = if asml > amed {
-                (amed, asml)
-            } else {
-                (asml, amed)
-            };
-            scl = 1.0;
-            sumsq = ymax * ymax * (1.0 + (ymin / ymax) * (ymin / ymax));
-        } else {
-            scl = 1.0 / ssml;
-            sumsq = asml;
-        }
-    } else {
-        scl = 1.0;
-        sumsq = amed;
-    }
-    scl * sumsq.sqrt()
 }
 
 /// `DLAPY2`: `sqrt(x^2 + y^2)` avoiding overflow.
@@ -426,103 +375,6 @@ pub(crate) fn lu_solve(a: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
         x[i] = t / m[at(i, i)];
     }
     Some(x)
-}
-
-/// R's `qr(x, tol)` (LINPACK `dqrdc2`, `src/appl/dqrdc2.f`) with R 4.5's BLAS `dnrm2` (Blue's
-/// algorithm, from the LAPACK 3.12 reference BLAS). `rnum::linpack::qr_decompose` uses the older
-/// scaled-sum `dnrm2`, which differs from the reference image in the last bit, so edgeR's QRs
-/// go through this copy. `x` is column-major `n x p`.
-pub(crate) fn qr_decompose_r45(x: &[f64], n: usize, p: usize, tol: f64) -> rnum::linpack::Qr {
-    let mut x = x.to_vec();
-    let col = |j: usize| j * n;
-    let mut qraux = vec![0.0; p];
-    let mut jpvt: Vec<usize> = (0..p).collect();
-    let mut work = vec![0.0; 2 * p];
-    for j in 0..p {
-        let nrm = dnrm2(&x[col(j)..col(j) + n]);
-        qraux[j] = nrm;
-        work[j] = nrm;
-        work[p + j] = if nrm == 0.0 { 1.0 } else { nrm };
-    }
-    let mut k = p + 1;
-    for l in 1..=n.min(p) {
-        let li = l - 1;
-        while l < k && qraux[li] < work[p + li] * tol {
-            for i in 0..n {
-                let t = x[col(li) + i];
-                for j in (l + 1)..=p {
-                    x[col(j - 2) + i] = x[col(j - 1) + i];
-                }
-                x[col(p - 1) + i] = t;
-            }
-            let (i, t, tt, ttt) = (jpvt[li], qraux[li], work[li], work[p + li]);
-            for j in (l + 1)..=p {
-                jpvt[j - 2] = jpvt[j - 1];
-                qraux[j - 2] = qraux[j - 1];
-                work[j - 2] = work[j - 1];
-                work[p + j - 2] = work[p + j - 1];
-            }
-            jpvt[p - 1] = i;
-            qraux[p - 1] = t;
-            work[p - 1] = tt;
-            work[p + p - 1] = ttt;
-            k -= 1;
-        }
-        if l == n {
-            continue;
-        }
-        let mut nrmxl = dnrm2(&x[col(li) + li..col(li) + n]);
-        if nrmxl == 0.0 {
-            continue;
-        }
-        let xll = x[col(li) + li];
-        if xll != 0.0 {
-            nrmxl = nrmxl.abs() * if xll < 0.0 { -1.0 } else { 1.0 };
-        }
-        let s = 1.0 / nrmxl;
-        for i in li..n {
-            x[col(li) + i] *= s;
-        }
-        x[col(li) + li] += 1.0;
-        for j in (l + 1)..=p {
-            let ji = j - 1;
-            let (head, tail) = x.split_at_mut(col(ji));
-            let xl = &head[col(li) + li..col(li) + n];
-            let xj = &mut tail[li..n];
-            let mut dot = 0.0;
-            for i in 0..xl.len() {
-                dot += xl[i] * xj[i];
-            }
-            let t = -dot / xl[0];
-            if t != 0.0 {
-                for i in 0..xl.len() {
-                    xj[i] += t * xl[i];
-                }
-            }
-            if qraux[ji] != 0.0 {
-                let r = xj[0].abs() / qraux[ji];
-                let tt = (1.0 - r * r).max(0.0);
-                if tt.abs() >= 1e-6 {
-                    qraux[ji] *= tt.sqrt();
-                } else {
-                    qraux[ji] = dnrm2(&xj[1..]);
-                    work[ji] = qraux[ji];
-                }
-            }
-        }
-        qraux[li] = x[col(li) + li];
-        x[col(li) + li] = -nrmxl;
-    }
-    let rank = if p == 0 { 0 } else { (k - 1).min(n) };
-    rnum::linpack::Qr {
-        qr: x,
-        n,
-        p,
-        qraux,
-        pivot: jpvt,
-        rank,
-        tol,
-    }
 }
 
 #[cfg(test)]

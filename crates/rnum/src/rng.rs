@@ -107,6 +107,7 @@ impl RRng {
     }
 
     /// `exp_rand` (sexp.c): Ahrens and Dieter (1972) standard exponential.
+    #[allow(clippy::approx_constant, clippy::excessive_precision)]
     pub fn exp_rand(&mut self) -> f64 {
         const Q: [f64; 16] = [
             0.6931471805599453,

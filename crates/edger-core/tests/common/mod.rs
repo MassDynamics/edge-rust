@@ -268,7 +268,7 @@ pub fn f_tol(f: f64) -> f64 {
     1e-8 * f.abs().max(1.0)
 }
 
-/// Per-element `[lo, hi]` image of `g(F, df)` over the F gate and a `1e-7` relative band on
+/// Per-element `[lo, hi]` image of `g(F, df)` over the F gate and a `1e-8` relative band on
 /// `df` (the QL prior df, see `stage_ql`), from the four corners (each `g` used here is monotone
 /// in both arguments).
 pub fn band(f: &[f64], df: &[f64], g: impl Fn(usize, f64, f64) -> f64) -> (Vec<f64>, Vec<f64>) {
@@ -278,7 +278,7 @@ pub fn band(f: &[f64], df: &[f64], g: impl Fn(usize, f64, f64) -> f64) -> (Vec<f
         let d = f_tol(f[i]);
         let mut vals = Vec::with_capacity(4);
         for fi in [(f[i] - d).max(0.0), f[i] + d] {
-            for di in [df[i] * (1.0 - 1e-7), df[i] * (1.0 + 1e-7)] {
+            for di in [df[i] * (1.0 - 1e-8), df[i] * (1.0 + 1e-8)] {
                 vals.push(g(i, fi, di));
             }
         }

@@ -27,6 +27,7 @@ fn top12(x: f64) -> u32 {
     (x.to_bits() >> 52) as u32
 }
 
+#[allow(clippy::assign_op_pattern)]
 fn exp_specialcase(tmp: f64, sbits: u64, ki: u64) -> f64 {
     if ki & 0x8000_0000 == 0 {
         // k > 0: the exponent of scale may have overflowed by <= 460.
@@ -171,6 +172,7 @@ pub fn ln(x: f64) -> f64 {
 }
 
 // Generated from glibc 2.34 sysdeps/ieee754/dbl-64/e_exp_data.c and e_log_data.c (bit patterns).
+#[rustfmt::skip]
 pub(crate) static EXP_TAB: [u64; 256] = [
     0x0000000000000000, 0x3ff0000000000000, 0x3c9b3b4f1a88bf6e, 0x3feff63da9fb3335,
     0xbc7160139cd8dc5d, 0x3fefec9a3e778061, 0xbc905e7a108766d1, 0x3fefe315e86e7f85,
@@ -238,6 +240,7 @@ pub(crate) static EXP_TAB: [u64; 256] = [
     0x3c77893b4d91cd9d, 0x3fefe7c1819e90d8, 0x3c5305c14160cc89, 0x3feff3c22b8f71f1,
 ];
 /// `(invc, logc)` bit patterns.
+#[rustfmt::skip]
 pub(crate) static LOG_TAB: [(u64, u64); 128] = [
     (0x3ff734f0c3e0de9f, 0xbfd7cc7f79e69000),
     (0x3ff713786a2ce91f, 0xbfd76feec20d0000),

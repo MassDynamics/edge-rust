@@ -51,7 +51,11 @@ impl Loess {
     fn ehg128(&self, z: f64) -> f64 {
         let mut j = 1usize;
         while self.a[j] != 0 {
-            j = if z <= self.xi[j] { self.lo[j] } else { self.hi[j] };
+            j = if z <= self.xi[j] {
+                self.lo[j]
+            } else {
+                self.hi[j]
+            };
         }
         let ll = self.c[j][0];
         let ur = self.c[j][1];
@@ -75,6 +79,7 @@ pub fn loess(x: &[f64], y: &[f64], span: f64, degree: usize) -> Result<Loess, St
 }
 
 /// As [`loess`] with an explicit `loess.control(cell = )`.
+#[allow(clippy::int_plus_one)]
 pub fn loess_cell(
     x: &[f64],
     y: &[f64],
@@ -481,7 +486,11 @@ fn dnrm2(x: &[f64]) -> f64 {
         if amed > 0.0 || amed > maxn || amed.is_nan() {
             let amed2 = amed.sqrt();
             let asml2 = asml.sqrt() / ssml;
-            let (ymin, ymax) = if asml2 > amed2 { (amed2, asml2) } else { (asml2, amed2) };
+            let (ymin, ymax) = if asml2 > amed2 {
+                (amed2, asml2)
+            } else {
+                (asml2, amed2)
+            };
             scl = 1.0;
             let r = ymin / ymax;
             sumsq = (ymax * ymax) * (1.0 + r * r);
@@ -508,7 +517,11 @@ fn drotg(a: f64, b: f64) -> (f64, f64, f64, f64) {
         (b, 1.0, 0.0, 1.0)
     } else {
         let scl = safmax.min(safmin.max(anorm).max(bnorm));
-        let sigma = if anorm > bnorm { 1f64.copysign(a) } else { 1f64.copysign(b) };
+        let sigma = if anorm > bnorm {
+            1f64.copysign(a)
+        } else {
+            1f64.copysign(b)
+        };
         let (as_, bs) = (a / scl, b / scl);
         let r = sigma * (scl * (as_ * as_ + bs * bs).sqrt());
         let c = a / r;
@@ -597,6 +610,7 @@ fn dqrsl_qty(x: &mut [f64], ld: usize, n: usize, k: usize, qraux: &[f64], y: &mu
 
 /// LINPACK `dsvdc` with `job = 21` on a square p x p matrix `x` (ld = p), with `x` and `u`
 /// aliased as in `ehg127`: on return `x` holds U, `s` the singular values, `v` holds V.
+#[allow(clippy::unnecessary_min_or_max)]
 fn dsvdc21(x: &mut [f64], p: usize, s: &mut [f64], v: &mut [f64]) -> usize {
     let n = p;
     let ld = p;

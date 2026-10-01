@@ -3,8 +3,8 @@
 //! `hat()` leverage it uses (R `stats::hat`, `src/library/stats/R/lm.influence.R`) and the
 //! package CPM (`cpm.default`, `src/compute_cpm.c`). Shared with the DESeq2 port.
 
-use crate::lapack::qr_decompose_r45;
 use rnum::linalg::median;
+use rnum::linpack::qr_decompose;
 
 /// What `filterByExpr` computed, per gene and overall.
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct FilterResult {
 pub fn hat(x: &[f64], n: usize, p: usize) -> Vec<f64> {
     let mut xi = vec![1.0; n];
     xi.extend_from_slice(x);
-    let qr = qr_decompose_r45(&xi, n, p + 1, 1e-7);
+    let qr = qr_decompose(&xi, n, p + 1, 1e-7);
     let mut h = vec![0.0; n];
     for k in 0..qr.rank {
         let mut e = vec![0.0; n];

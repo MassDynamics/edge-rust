@@ -2,6 +2,8 @@
 //! ifunc variant for it, so the C is ported as written with no fused operations. Companion to
 //! [`crate::glibm`]'s `exp` / `ln`; checked bit for bit against the reference R's `log1p`
 //! (`tests/glibm_golden.rs`).
+// The constants are glibc's literals, kept digit for digit.
+#![allow(clippy::excessive_precision)]
 
 /// glibc `log1p` (`s_log1p.c`, fdlibm-derived; x86_64 has no FMA variant, so no fusing).
 pub fn log1p(x: f64) -> f64 {

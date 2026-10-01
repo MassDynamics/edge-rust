@@ -557,10 +557,10 @@ pub(crate) fn lgammafn_sign(x: f64, sgn: Option<&mut i32>) -> f64 {
     let y = x.abs();
 
     if y < 1e-306 {
-        return -y.ln(); // denormalized range, R change
+        return -crate::glibm::ln(y); // denormalized range, R change
     }
     if y <= 10.0 {
-        return gammafn(x).abs().ln();
+        return crate::glibm::ln(gammafn(x).abs());
     }
     // ELSE  y = |x| > 10 ----------------------
 
@@ -572,11 +572,11 @@ pub(crate) fn lgammafn_sign(x: f64, sgn: Option<&mut i32>) -> f64 {
     if x > 0.0 {
         /* i.e. y = x > 10 */
         if x > 1e17 {
-            return x * (x.ln() - 1.0);
+            return x * (crate::glibm::ln(x) - 1.0);
         } else if x > 4934720.0 {
-            return M_LN_SQRT_2PI + (x - 0.5) * x.ln() - x;
+            return M_LN_SQRT_2PI + (x - 0.5) * crate::glibm::ln(x) - x;
         } else {
-            return M_LN_SQRT_2PI + (x - 0.5) * x.ln() - x + lgammacor(x);
+            return M_LN_SQRT_2PI + (x - 0.5) * crate::glibm::ln(x) - x + lgammacor(x);
         }
     }
     /* else: x < -10; y = -x */
@@ -588,7 +588,7 @@ pub(crate) fn lgammafn_sign(x: f64, sgn: Option<&mut i32>) -> f64 {
     }
 
     // (The "too near a negative integer" ML_WARNING is dropped.)
-    M_LN_SQRT_PI_D2 + (x - 0.5) * y.ln() - x - sinpiy.ln() - lgammacor(y)
+    M_LN_SQRT_PI_D2 + (x - 0.5) * crate::glibm::ln(y) - x - crate::glibm::ln(sinpiy) - lgammacor(y)
 }
 
 /// `lgamma.c: lgammafn` — `log|gamma(x)|`.
@@ -794,7 +794,7 @@ pub(crate) fn dpsifn(
     } /* x <= 0 */
 
     /* else :  x > 0 */
-    let xln = x.ln();
+    let xln = crate::glibm::ln(x);
     if kode == 1 && m == 1 {
         /* the R case  ---  for very large x: */
         let lrg = 1.0 / (2.0 * f64::EPSILON);
@@ -802,7 +802,7 @@ pub(crate) fn dpsifn(
             ans[0] = -xln;
             return;
         } else if n >= 1 && x > n as f64 * lrg {
-            ans[0] = (-(n as f64) * xln).exp() / n as f64; /* == x^-n / n  ==  1/(n * x^n) */
+            ans[0] = crate::glibm::exp(-(n as f64) * xln) / n as f64; /* == x^-n / n  ==  1/(n * x^n) */
             return;
         }
     }
@@ -865,7 +865,7 @@ pub(crate) fn dpsifn(
             if n != 0 {
                 xm = -2.302 * rln - fmin2(0.0, xln);
                 let arg = fmin2(0.0, xm / n as f64);
-                let eps = arg.exp();
+                let eps = crate::glibm::exp(arg);
                 xm = if arg.abs() < 1.0e-3 { -arg } else { 1.0 - eps };
                 fln = x * xm / eps;
                 xm = xmin - x;
@@ -880,7 +880,7 @@ pub(crate) fn dpsifn(
                 nx = x as i32;
                 xinc = xmin - nx as f64;
                 xdmy = x + xinc;
-                xdmln = xdmy.ln();
+                xdmln = crate::glibm::ln(xdmy);
             }
 
             /* generate w(n+mm-1, x) by the asymptotic expansion */
@@ -907,12 +907,12 @@ pub(crate) fn dpsifn(
         nn = fln as i32 + 1;
         let np = n + 1;
         t1 = (n + 1) as f64 * xln;
-        t = (-t1).exp();
+        t = crate::glibm::exp(-t1);
         s = t;
         let mut den = x;
         for i in 1..=nn as usize {
             den += 1.0;
-            trm[i] = den.powf(-np as f64);
+            trm[i] = crate::glibm_pow::pow(den, -np as f64);
             s += trm[i];
         }
         ans[0] = s;
@@ -944,7 +944,7 @@ pub(crate) fn dpsifn(
     }
 
     // L10:
-    let mut tss = (-t).exp();
+    let mut tss = crate::glibm::exp(-t);
     let tt = 0.5 / xdmy;
     t1 = tt;
     let tst = wdtol * tt;
@@ -997,7 +997,7 @@ pub(crate) fn dpsifn(
 
                 /* this loop should not be changed. fx is accurate when x is small */
                 for i in 1..=nx as usize {
-                    trmr[i] = fx.powf(-np as f64);
+                    trmr[i] = crate::glibm_pow::pow(fx, -np as f64);
                     s += trmr[i];
                     xm -= 1.0;
                     fx = x + xm;
@@ -1065,7 +1065,7 @@ pub(crate) fn dpsifn(
         ans[0] = s - xdmln;
     } else if xdmy != x {
         let xq = xdmy / x;
-        ans[0] = s - xq.ln();
+        ans[0] = s - crate::glibm::ln(xq);
     }
 } /* dpsifn() */
 
@@ -2437,7 +2437,7 @@ pub fn logmdigamma(x: f64) -> f64 {
         return f64::NAN;
     }
     if x.abs() < 5.0 {
-        return (x / (x + 5.0)).ln()
+        return crate::glibm::ln(x / (x + 5.0))
             + logmdigamma(x + 5.0)
             + 1.0 / x
             + 1.0 / (x + 1.0)

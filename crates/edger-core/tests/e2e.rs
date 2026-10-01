@@ -2,9 +2,10 @@
 //! (the production table, ANOVA shaped for anova runs), under the corpus `tolerance_policy`, and
 //! every expected-error run against its recorded message.
 //!
-//! P-values and everything derived from F (stat, SE, CI) inherit F's conditioning: where the
-//! plain 1e-8 relative gate fails they must lie inside the image of the F gate and the 1e-7 df
-//! band (`common::band`), which is what `stage_qltest` established for the test itself.
+//! P-values and everything derived from F (stat, SE, CI) inherit F's conditioning, so they are
+//! checked against the image of the F gate and the 1e-8 df band (`common::band`), as in
+//! `stage_qltest`. On the image's arithmetic (glibm, long double sums, Blue's dnrm2) every run
+//! passes plain 1e-8 relative, so the test also asserts that no value needed the band.
 
 mod common;
 
@@ -493,6 +494,12 @@ fn e2e_tables_match_reference_output() {
             .map(|(k, (m, b))| format!("{k} {m:.1e}/{b}"))
             .collect();
         eprintln!("{run}: {}", line.join(", "));
+        for (k, (m, b)) in &ks {
+            assert!(
+                **k == "f_floor_rows" || *b == 0,
+                "{run}: {k} needed the F band ({b} values, max rel {m:e})"
+            );
+        }
         n += 1;
     }
     assert_eq!(n, 25, "edgeR ok runs");

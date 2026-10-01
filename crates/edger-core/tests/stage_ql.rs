@@ -27,15 +27,7 @@ fn glm_ql_fit_on_every_edger_run() {
         let mut check = |what: &str, got: &[f64], want: &[f64], floor: f64| {
             let m = max_rel_floor(&format!("{run} {what}"), got, want, floor);
             worst.push(format!("{what} {m:.1e}"));
-            // df2 is the argmin of a Brent search (tol 1.2e-4 on df2 / (1 + df2)). When df2 is
-            // large the likelihood is flat and the last parabolic step amplifies the ~5e-11
-            // rounding noise in s2 to 7e-8 (count_synth ctlfactor, df2 = 1837); fed the golden
-            // s2 the gap drops to 3e-9. s2_post, which is what df2 feeds, stays at 7e-10.
-            let tol = if what == "df_prior" || what == "fdist_df2" {
-                1e-7
-            } else {
-                1e-8
-            };
+            let tol = 1e-8;
             assert!(m <= tol, "{run}: {what} max rel {m:e}");
         };
         let s = |k: &str| scalar(&run, k);

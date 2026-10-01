@@ -11,28 +11,60 @@
 
 use crate::{LimmaError, Result};
 
-/// Reference-BLAS `dnrm2` (scaled sum of squares).
+/// Reference BLAS `DNRM2` as of LAPACK 3.10 (Blue's scaled sum of squares), unit stride.
+///
+/// R 4.5 ships this version in its reference BLAS, so `qr()` and `lm.fit()` norms
+/// match R bit for bit.
 pub fn dnrm2(x: &[f64]) -> f64 {
-    match x.len() {
-        0 => 0.0,
-        1 => x[0].abs(),
-        _ => {
-            let mut scale = 0.0f64;
-            let mut ssq = 1.0f64;
-            for &xi in x {
-                if xi != 0.0 {
-                    let absxi = xi.abs();
-                    if scale < absxi {
-                        ssq = 1.0 + ssq * (scale / absxi) * (scale / absxi);
-                        scale = absxi;
-                    } else {
-                        ssq += (absxi / scale) * (absxi / scale);
-                    }
-                }
+    let tsml = 2f64.powi(-511);
+    let tbig = 2f64.powi(486);
+    let ssml = 2f64.powi(537);
+    let sbig = 2f64.powi(-538);
+    if x.is_empty() {
+        return 0.0;
+    }
+    let (mut asml, mut amed, mut abig) = (0.0f64, 0.0f64, 0.0f64);
+    let mut notbig = true;
+    for &v in x {
+        let ax = v.abs();
+        if ax > tbig {
+            abig += (ax * sbig) * (ax * sbig);
+            notbig = false;
+        } else if ax < tsml {
+            if notbig {
+                asml += (ax * ssml) * (ax * ssml);
             }
-            scale * ssq.sqrt()
+        } else {
+            amed += ax * ax;
         }
     }
+    let (scl, sumsq);
+    if abig > 0.0 {
+        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
+            abig += (amed * sbig) * sbig;
+        }
+        scl = 1.0 / sbig;
+        sumsq = abig;
+    } else if asml > 0.0 {
+        if amed > 0.0 || amed > f64::MAX || amed.is_nan() {
+            let amed = amed.sqrt();
+            let asml = asml.sqrt() / ssml;
+            let (ymin, ymax) = if asml > amed {
+                (amed, asml)
+            } else {
+                (asml, amed)
+            };
+            scl = 1.0;
+            sumsq = ymax * ymax * (1.0 + (ymin / ymax) * (ymin / ymax));
+        } else {
+            scl = 1.0 / ssml;
+            sumsq = asml;
+        }
+    } else {
+        scl = 1.0;
+        sumsq = amed;
+    }
+    scl * sumsq.sqrt()
 }
 
 fn ddot(x: &[f64], y: &[f64]) -> f64 {

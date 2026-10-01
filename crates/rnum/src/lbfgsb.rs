@@ -56,6 +56,7 @@ const RELTEST: f64 = 10.0;
 /// `fmingr(b, g)` writes the gradient; either may fail with an [`OptimError`], which is
 /// propagated the way R's `error()` would abort the call.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_range_loop)]
 pub fn vmmin<F, G>(
     b: &mut [f64],
     mut fminfn: F,
@@ -72,7 +73,12 @@ where
     let n0 = b.len();
     if maxit <= 0 {
         let fmin = fminfn(b)?;
-        return Ok(VmminOut { fmin, fncount: 0, grcount: 0, fail: 0 });
+        return Ok(VmminOut {
+            fmin,
+            fncount: 0,
+            grcount: 0,
+            fail: 0,
+        });
     }
     let l: Vec<usize> = (0..n0).filter(|&i| mask[i]).collect();
     let n = l.len();
@@ -213,7 +219,12 @@ where
             break;
         }
     }
-    Ok(VmminOut { fmin, fncount: funcount, grcount: gradcount, fail: if iter < maxit { 0 } else { 1 } })
+    Ok(VmminOut {
+        fmin,
+        fncount: funcount,
+        grcount: gradcount,
+        fail: if iter < maxit { 0 } else { 1 },
+    })
 }
 
 /// Control values `optim()` passes to the C code (the subset BFGS, L-BFGS-B and
@@ -271,7 +282,12 @@ pub struct OptimOut {
 }
 
 /// `fminfn`: objective on the scaled parameters, divided by `fnscale`.
-fn fminfn_scaled<F: FnMut(&[f64]) -> f64>(fun: &mut F, p: &[f64], parscale: &[f64], fnscale: f64) -> Result<f64, OptimError> {
+fn fminfn_scaled<F: FnMut(&[f64]) -> f64>(
+    fun: &mut F,
+    p: &[f64],
+    parscale: &[f64],
+    fnscale: f64,
+) -> Result<f64, OptimError> {
     let mut x = vec![0.0; p.len()];
     for i in 0..p.len() {
         if !p[i].is_finite() {
@@ -299,7 +315,11 @@ fn fmingr_scaled<G: FnMut(&[f64]) -> Vec<f64>>(
     }
     let s = gr(&x);
     if s.len() != p.len() {
-        return Err(OptimError::Invalid(format!("gradient in optim evaluated to length {} not {}", s.len(), p.len())));
+        return Err(OptimError::Invalid(format!(
+            "gradient in optim evaluated to length {} not {}",
+            s.len(),
+            p.len()
+        )));
     }
     for i in 0..p.len() {
         df[i] = s[i] * parscale[i] / fnscale;
@@ -308,7 +328,12 @@ fn fmingr_scaled<G: FnMut(&[f64]) -> Vec<f64>>(
 }
 
 /// `optim(par, fn, gr, method = "BFGS", control)` with an analytic gradient.
-pub fn optim_bfgs<F, G>(par: &[f64], mut fun: F, mut gr: G, control: &OptimControl) -> Result<OptimOut, OptimError>
+pub fn optim_bfgs<F, G>(
+    par: &[f64],
+    mut fun: F,
+    mut gr: G,
+    control: &OptimControl,
+) -> Result<OptimOut, OptimError>
 where
     F: FnMut(&[f64]) -> f64,
     G: FnMut(&[f64]) -> Vec<f64>,
@@ -382,7 +407,10 @@ mod tests {
         100.0 * (x[1] - x[0] * x[0]) * (x[1] - x[0] * x[0]) + (1.0 - x[0]) * (1.0 - x[0])
     }
     fn grr(x: &[f64]) -> Vec<f64> {
-        vec![-400.0 * x[0] * (x[1] - x[0] * x[0]) - 2.0 * (1.0 - x[0]), 200.0 * (x[1] - x[0] * x[0])]
+        vec![
+            -400.0 * x[0] * (x[1] - x[0] * x[0]) - 2.0 * (1.0 - x[0]),
+            200.0 * (x[1] - x[0] * x[0]),
+        ]
     }
     fn p(s: &str) -> f64 {
         s.parse().unwrap()
@@ -392,26 +420,46 @@ mod tests {
     fn bfgs_reproduces_r_optim_on_rosenbrock() {
         // R 4.5.0: optim(c(-1.2,1), fr, grr, method = "BFGS", hessian = TRUE)
         let o = optim_bfgs(&[-1.2, 1.0], fr, grr, &OptimControl::default()).unwrap();
-        assert_eq!(o.par, vec![p("0.99999999690491403"), p("0.999999993797419")]);
+        assert_eq!(
+            o.par,
+            vec![p("0.99999999690491403"), p("0.999999993797419")]
+        );
         assert_eq!(o.value, p("9.5949556437698302e-18"));
         assert_eq!((o.fncount, o.grcount, o.convergence), (110, 43, 0));
         let h = optimhess(&o.par, grr, &OptimControl::default()).unwrap();
-        let want = [p("802.00039505280938"), p("-399.99999876196159"), p("-399.99999876196159"), p("200.00000000000017")];
+        let want = [
+            p("802.00039505280938"),
+            p("-399.99999876196159"),
+            p("-399.99999876196159"),
+            p("200.00000000000017"),
+        ];
         assert_eq!(h, want.to_vec());
     }
 
     #[test]
     fn bfgs_and_optimhess_apply_parscale_and_fnscale_like_r() {
         // optim(c(-1.2,1), fr, grr, method = "BFGS", control = list(parscale = c(2, 0.5), fnscale = 3))
-        let c = OptimControl { parscale: Some(vec![2.0, 0.5]), fnscale: 3.0, ..Default::default() };
+        let c = OptimControl {
+            parscale: Some(vec![2.0, 0.5]),
+            fnscale: 3.0,
+            ..Default::default()
+        };
         let o = optim_bfgs(&[-1.2, 1.0], fr, grr, &c).unwrap();
         assert_eq!(o.par, vec![p("1.0000000024774967"), p("1.000000004966787")]);
         assert_eq!(o.value, p("6.1518987440991377e-18"));
         assert_eq!((o.fncount, o.grcount), (55, 28));
         // optimHess(c(0.3, 0.7), fr, grr, control = list(parscale = c(2, 0.5)))
-        let c = OptimControl { parscale: Some(vec![2.0, 0.5]), ..Default::default() };
+        let c = OptimControl {
+            parscale: Some(vec![2.0, 0.5]),
+            ..Default::default()
+        };
         let h = optimhess(&[0.3, 0.7], grr, &c).unwrap();
-        let want = [p("-169.99959999999703"), p("-119.99999999999744"), p("-119.99999999999744"), p("200.00000000000284")];
+        let want = [
+            p("-169.99959999999703"),
+            p("-119.99999999999744"),
+            p("-119.99999999999744"),
+            p("200.00000000000284"),
+        ];
         assert_eq!(h, want.to_vec());
     }
 

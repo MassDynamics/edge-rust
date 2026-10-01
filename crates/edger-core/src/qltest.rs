@@ -4,9 +4,9 @@
 //! and the F statistic is the deviance difference over the posterior QL dispersion.
 
 use crate::glm::glm_fit;
-use crate::lapack::qr_decompose_r45;
 use crate::ql::QlFit;
 use rnum::linalg::p_adjust_bh;
+use rnum::linpack::qr_decompose;
 use rnum::nmath::pf;
 
 /// One QL F-test: per-gene null deviance, LR, F, df.total, p-value, BH FDR and logFC
@@ -49,7 +49,7 @@ pub fn glm_ql_ftest(
         }
     }
     // Q <- qr.Q(qr(contrast), complete = TRUE, Dvec); design0 <- (design %*% Q)[, -(1:rank)]
-    let qrc = qr_decompose_r45(contrast, p, ncon, 1e-7);
+    let qrc = qr_decompose(contrast, p, ncon, 1e-7);
     let r = qrc.rank;
     let p0 = p - r;
     let mut design0 = vec![0.0; nlib * p0];

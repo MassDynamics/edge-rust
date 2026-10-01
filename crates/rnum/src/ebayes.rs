@@ -9,6 +9,8 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::fit::{MArrayLm, LM_TOL};
+use crate::glibm::{exp, ln};
+use crate::glibm_log1p::log1p;
 use crate::linalg::{
     cmp_nan_last, cov2cor, cummax, eigen_symmetric, is_fullrank, mean, mean_trim, median,
     p_adjust_bh, quantile7, rank_average,
@@ -56,8 +58,16 @@ fn n_unique(x: &[f64]) -> usize {
     s.len()
 }
 
+/// R's `sum()`: the image's x87 long double accumulator for finite input (non-finite input
+/// gives the same Inf or NaN either way).
 fn sum(x: &[f64]) -> f64 {
-    x.iter().sum()
+    if x.iter()
+        .all(|v| *v == 0.0 || (1e-300..1e300).contains(&v.abs()))
+    {
+        crate::ldouble::sum(x)
+    } else {
+        x.iter().sum()
+    }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -199,7 +209,7 @@ pub fn fit_f_dist(x: &[f64], df1: &[f64], covariate: Option<&[f64]>) -> Result<F
 
     // Better to work on with log(F)
     let e: Vec<f64> = (0..nok)
-        .map(|i| xs[i].ln() + logmdigamma(at(&df1s, i) / 2.0))
+        .map(|i| ln(xs[i]) + logmdigamma(at(&df1s, i) / 2.0))
         .collect();
 
     let emean: Vec<f64>;
@@ -207,7 +217,8 @@ pub fn fit_f_dist(x: &[f64], df1: &[f64], covariate: Option<&[f64]>) -> Result<F
     match &covs {
         None => {
             let em = mean(&e);
-            evar = e.iter().map(|v| (v - em) * (v - em)).sum::<f64>() / (nok - 1) as f64;
+            evar =
+                sum(&e.iter().map(|v| (v - em) * (v - em)).collect::<Vec<_>>()) / (nok - 1) as f64;
             emean = vec![em];
         }
         Some(c) => {
@@ -250,13 +261,13 @@ pub fn fit_f_dist(x: &[f64], df1: &[f64], covariate: Option<&[f64]>) -> Result<F
     if evar > 0.0 {
         let df2 = 2.0 * trigamma_inverse(evar);
         let lmd = logmdigamma(df2 / 2.0);
-        let scale = emean.iter().map(|em| (em - lmd).exp()).collect();
+        let scale = emean.iter().map(|em| exp(em - lmd)).collect();
         Ok(FDistFit { scale, df2 })
     } else {
         let scale = match covs {
             // Use simple pooled variance, which is MLE of the scale in this case.
             None => vec![mean(&xs)],
-            Some(_) => emean.iter().map(|em| em.exp()).collect(),
+            Some(_) => emean.iter().map(|&em| exp(em)).collect(),
         };
         Ok(FDistFit {
             scale,
@@ -350,7 +361,7 @@ pub fn fit_f_dist_robustly(
         let scale = match (covariate, &covs) {
             (Some(c), Some(cs)) => {
                 let cov2: Vec<f64> = (0..n).filter(|&i| !ok[i]).map(|i| c[i]).collect();
-                let logscale: Vec<f64> = fit.scale.iter().map(|s| s.ln()).collect();
+                let logscale: Vec<f64> = fit.scale.iter().map(|&s| ln(s)).collect();
                 let interp = crate::linalg::approx_rule2_ties_mean(cs, &logscale, &cov2);
                 let mut scale = vec![0.0; n];
                 let mut k_ok = 0;
@@ -360,7 +371,7 @@ pub fn fit_f_dist_robustly(
                         scale[i] = fit.scale[k_ok];
                         k_ok += 1;
                     } else {
-                        scale[i] = interp[k_no].exp();
+                        scale[i] = exp(interp[k_no]);
                         k_no += 1;
                     }
                 }
@@ -426,7 +437,7 @@ pub fn fit_f_dist_robustly(
     }
 
     // Better to work with log(F)
-    let z: Vec<f64> = x.iter().map(|v| v.ln()).collect();
+    let z: Vec<f64> = x.iter().map(|&v| ln(v)).collect();
 
     // Demean or Detrend
     let ztrend: Vec<f64>;
@@ -465,41 +476,43 @@ pub fn fit_f_dist_robustly(
             qf(winsor_tail_p[0], d1, df2, true, false),
             qf(1.0 - winsor_tail_p[1], d1, df2, true, false),
         ];
-        let zq = [fq[0].ln(), fq[1].ln()];
+        let zq = [ln(fq[0]), ln(fq[1])];
         let q = [linkfun(fq[0]), linkfun(fq[1])];
         let q21 = q[1] - q[0];
-        let mut m = 0.0;
         let mut fz: Vec<(f64, f64)> = Vec::with_capacity(gnodes.len());
         for (&node, &w) in gnodes.iter().zip(&gweights) {
             let nd = q[0] + q21 * node;
             let fnode = linkinv(nd);
-            let znode = fnode.ln();
+            let znode = ln(fnode);
             let f = df(fnode, d1, df2, false) / ((1.0 - nd) * (1.0 - nd));
-            m += w * f * znode;
             fz.push((w * f, znode));
         }
-        let m = q21 * m + (zq[0] * winsor_tail_p[0] + zq[1] * winsor_tail_p[1]);
-        let mut v = 0.0;
-        for &(wf, znode) in &fz {
-            v += wf * (znode - m) * (znode - m);
-        }
-        let v = q21 * v
-            + ((zq[0] - m) * (zq[0] - m) * winsor_tail_p[0]
-                + (zq[1] - m) * (zq[1] - m) * winsor_tail_p[1]);
+        let wfz: Vec<f64> = fz.iter().map(|&(wf, znode)| wf * znode).collect();
+        let m = q21 * sum(&wfz) + sum(&[zq[0] * winsor_tail_p[0], zq[1] * winsor_tail_p[1]]);
+        // R: g$weights*f*(znodes-m)^2, the square formed first
+        let wfv: Vec<f64> = fz
+            .iter()
+            .map(|&(wf, znode)| wf * ((znode - m) * (znode - m)))
+            .collect();
+        let v = q21 * sum(&wfv)
+            + sum(&[
+                (zq[0] - m) * (zq[0] - m) * winsor_tail_p[0],
+                (zq[1] - m) * (zq[1] - m) * winsor_tail_p[1],
+            ]);
         Moments { mean: m, var: v }
     };
 
     // Try df2==Inf
     let mom = winsorized_moments(f64::INFINITY);
-    let funval_inf = (zwvar / mom.var).ln();
+    let funval_inf = ln(zwvar / mom.var);
     if funval_inf <= 0.0 {
         let df2 = f64::INFINITY;
         // Correct trend for bias
         let ztrendcorrected: Vec<f64> = ztrend.iter().map(|t| t + zwmean - mom.mean).collect();
-        let s20: Vec<f64> = ztrendcorrected.iter().map(|v| v.exp()).collect();
+        let s20: Vec<f64> = ztrendcorrected.iter().map(|&v| exp(v)).collect();
         // Posterior df for outliers
         let fstat: Vec<f64> = (0..n)
-            .map(|i| (z[i] - at(&ztrendcorrected, i)).exp())
+            .map(|i| exp(z[i] - at(&ztrendcorrected, i)))
             .collect();
         let tail_p: Vec<f64> = fstat
             .iter()
@@ -535,7 +548,7 @@ pub fn fit_f_dist_robustly(
     // Estimate df2 by matching variance of zwins
     let fun = |x: f64| -> f64 {
         let mom = winsorized_moments(linkinv(x));
-        (zwvar / mom.var).ln()
+        ln(zwvar / mom.var)
     };
 
     // Use non-robust estimate as lower bound for df2
@@ -567,24 +580,24 @@ pub fn fit_f_dist_robustly(
     // Correct ztrend for bias
     let mom = winsorized_moments(df2);
     let ztrendcorrected: Vec<f64> = ztrend.iter().map(|t| t + zwmean - mom.mean).collect();
-    let s20: Vec<f64> = ztrendcorrected.iter().map(|v| v.exp()).collect();
+    let s20: Vec<f64> = ztrendcorrected.iter().map(|&v| exp(v)).collect();
 
     // Posterior df for outliers
     let zresid: Vec<f64> = (0..n).map(|i| z[i] - at(&ztrendcorrected, i)).collect();
-    let fstat: Vec<f64> = zresid.iter().map(|v| v.exp()).collect();
+    let fstat: Vec<f64> = zresid.iter().map(|&v| exp(v)).collect();
     let log_tail_p: Vec<f64> = fstat.iter().map(|&f| pf(f, d1, df2, false, true)).collect();
     let r = rank_average(&fstat);
-    let ln_n = (n as f64).ln();
+    let ln_n = ln(n as f64);
     let mut log_pno = vec![0.0; n];
     let mut any_neg = false;
     for i in 0..n {
-        let log_emp = (n as f64 - r[i] + 0.5).ln() - ln_n;
+        let log_emp = ln(n as f64 - r[i] + 0.5) - ln_n;
         log_pno[i] = (log_tail_p[i] - log_emp).min(0.0);
         if log_pno[i] < 0.0 {
             any_neg = true;
         }
     }
-    let pno: Vec<f64> = log_pno.iter().map(|v| v.exp()).collect();
+    let pno: Vec<f64> = log_pno.iter().map(|&v| exp(v)).collect();
     let pout: Vec<f64> = log_pno.iter().map(|v| -v.exp_m1()).collect();
     let df2_shrunk = if any_neg {
         // Find df2.outlier to make maxFstat the median of the distribution
@@ -593,11 +606,11 @@ pub fn fit_f_dist_robustly(
         if min_log_tail_p == f64::NEG_INFINITY {
             df2_shrunk = pno.iter().map(|p| p * df2).collect();
         } else {
-            let mut df2_outlier = 0.5f64.ln() / min_log_tail_p * df2;
+            let mut df2_outlier = ln(0.5) / min_log_tail_p * df2;
             // Iterate for accuracy
             let max_f = fstat.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let new_log_tail_p = pf(max_f, d1, df2_outlier, false, true);
-            df2_outlier *= 0.5f64.ln() / new_log_tail_p;
+            df2_outlier *= ln(0.5) / new_log_tail_p;
             df2_shrunk = (0..n)
                 .map(|i| pno[i] * df2 + pout[i] * df2_outlier)
                 .collect();
@@ -621,12 +634,13 @@ pub fn fit_f_dist_robustly(
 fn monotone_in(df2_shrunk: &mut [f64], o: &[usize]) {
     let n = o.len();
     let mut ordered: Vec<f64> = o.iter().map(|&i| df2_shrunk[i]).collect();
-    let mut acc = 0.0;
+    // R's cumsum() accumulates in long double and rounds each partial sum
+    let mut acc = crate::ldouble::Ld::ZERO;
     let mut imin = 0;
     let mut mmin = f64::INFINITY;
     for (k, v) in ordered.iter().enumerate() {
-        acc += v;
-        let m = acc / (k + 1) as f64;
+        acc = acc.add(crate::ldouble::Ld::from_f64(*v));
+        let m = acc.to_f64() / (k + 1) as f64;
         if m < mmin {
             mmin = m;
             imin = k;
@@ -771,7 +785,7 @@ pub fn fit_f_dist_unequal_df1(
     let xpos: Vec<f64> = x.iter().map(|&v| v.max(1e-12 * m)).collect();
 
     // Work on with log(F)
-    let z: Vec<f64> = xpos.iter().map(|v| v.ln()).collect();
+    let z: Vec<f64> = xpos.iter().map(|&v| ln(v)).collect();
 
     // Average log(F) adjusted for d1
     let d1: Vec<f64> = df1.iter().map(|d| d / 2.0).collect();
@@ -786,7 +800,7 @@ pub fn fit_f_dist_unequal_df1(
         None if null_weights => vec![f64::NAN],
         None => {
             let sw: f64 = sum(&w);
-            let swe: f64 = (0..n).map(|i| w[i] * e[i]).sum();
+            let swe: f64 = sum(&(0..n).map(|i| w[i] * e[i]).collect::<Vec<_>>());
             vec![swe / sw]
         }
         Some(c) => {
@@ -806,26 +820,25 @@ pub fn fit_f_dist_unequal_df1(
         let d2 = par / (1.0 - par);
         let lmd = logmdigamma(d2);
         let lg_d2 = lgammafn(d2);
-        let mut acc = 0.0;
+        let mut terms = vec![0.0; n];
         for i in 0..n {
             let d1i = at(&d1, i);
-            let d2s20 = d2 * (at(&emean, i) - lmd).exp();
-            let term = -(d1i + d2) * (d1x[i] / d2s20).ln_1p() - d1i * d2s20.ln()
-                + lgammafn(d1i + d2)
-                - lg_d2;
-            acc += match &pw {
+            let d2s20 = d2 * exp(at(&emean, i) - lmd);
+            let term =
+                -(d1i + d2) * log1p(d1x[i] / d2s20) - d1i * ln(d2s20) + lgammafn(d1i + d2) - lg_d2;
+            terms[i] = match &pw {
                 Some(pwv) => pwv[i] * term,
                 None => term,
             };
         }
-        -2.0 * acc
+        -2.0 * sum(&terms)
     };
 
     // Optimization
     let minimum = brent_fmin(0.5, 0.9998, minus_twice_log_lik, optimize_default_tol());
     let d2 = minimum / (1.0 - minimum);
     let lmd = logmdigamma(d2);
-    let s20: Vec<f64> = emean.iter().map(|em| (em - lmd).exp()).collect();
+    let s20: Vec<f64> = emean.iter().map(|em| exp(em - lmd)).collect();
 
     // Finish here if robust=FALSE
     if !robust {
@@ -907,10 +920,10 @@ pub fn fit_f_dist_unequal_df1(
         df2_outlier = 0.0;
         df2_shrunk = pno.iter().map(|p| p * df2).collect();
     } else {
-        let mut d = 0.5f64.ln() / min_right_p.ln() * df2;
+        let mut d = ln(0.5) / ln(min_right_p) * df2;
         // Iterate for accuracy
         let new_log_right_p = pf(fstat[imin], at(&df1, imin), d, false, true);
-        d *= 0.5f64.ln() / new_log_right_p;
+        d *= ln(0.5) / new_log_right_p;
         df2_outlier = d;
         df2_shrunk = (0..n).map(|i| pno[i] * df2 + (1.0 - pno[i]) * d).collect();
     }
@@ -1140,7 +1153,12 @@ pub fn ebayes(fit: &MArrayLm, opts: &EBayesOptions) -> Result<EBayes> {
             t[k] = fit.coefficients[k] / fit.stdev_unscaled[k] / s2_post[g].sqrt();
         }
     }
-    let df_pooled: f64 = fit.df_residual.iter().filter(|v| !v.is_nan()).sum();
+    let df_pooled: f64 = sum(&fit
+        .df_residual
+        .iter()
+        .copied()
+        .filter(|v| !v.is_nan())
+        .collect::<Vec<_>>());
     let df_total: Vec<f64> = (0..ngenes)
         .map(|g| (fit.df_residual[g] + at(&df_prior, g)).min(df_pooled))
         .collect();
@@ -1185,7 +1203,7 @@ pub fn ebayes(fit: &MArrayLm, opts: &EBayesOptions) -> Result<EBayes> {
         warnings.push(VAR_PRIOR_WARNING);
     }
     let mut lods = vec![0.0; ngenes * ncoef];
-    let log_odds = (opts.proportion / (1.0 - opts.proportion)).ln();
+    let log_odds = ln(opts.proportion / (1.0 - opts.proportion));
     for j in 0..ncoef {
         for g in 0..ngenes {
             let k = j * ngenes + g;
@@ -1196,9 +1214,9 @@ pub fn ebayes(fit: &MArrayLm, opts: &EBayesOptions) -> Result<EBayes> {
                 t2 * (1.0 - 1.0 / r) / 2.0
             } else {
                 let dft = df_total[g];
-                (1.0 + dft) / 2.0 * ((t2 + dft) / (t2 / r + dft)).ln()
+                (1.0 + dft) / 2.0 * ln((t2 + dft) / (t2 / r + dft))
             };
-            lods[k] = log_odds - r.ln() / 2.0 + kernel;
+            lods[k] = log_odds - ln(r) / 2.0 + kernel;
         }
     }
 

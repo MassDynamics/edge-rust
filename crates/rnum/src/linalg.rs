@@ -244,7 +244,8 @@ pub fn median(x: &[f64]) -> f64 {
     if n % 2 == 1 {
         s[half - 1]
     } else {
-        (s[half - 1] + s[half]) / 2.0
+        // R: mean(sort(x, partial = half + 0:1)[half + 0:1])
+        mean(&s[half - 1..=half])
     }
 }
 
@@ -288,9 +289,16 @@ pub fn mean_trim(x: &[f64], trim: f64) -> f64 {
     mean(&s[lo - 1..hi])
 }
 
-/// R's `mean()` for doubles: two-pass with the long-double refinement
-/// (long double is double on arm64; the second pass is kept regardless).
+/// R's `mean()` for doubles: two-pass with the long-double refinement. Finite input goes
+/// through [`crate::ldouble::mean`], the x87 80-bit arithmetic of the R image; the plain
+/// double passes below serve non-finite input and values near the double range limits.
 pub fn mean(x: &[f64]) -> f64 {
+    if !x.is_empty()
+        && x.iter()
+            .all(|v| *v == 0.0 || (1e-300..1e300).contains(&v.abs()))
+    {
+        return crate::ldouble::mean(x);
+    }
     let n = x.len() as f64;
     let mut s = 0.0;
     for &v in x {

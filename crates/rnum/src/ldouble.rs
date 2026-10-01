@@ -1,7 +1,7 @@
 //! R's `long double` accumulators as they run on x86-64, where `LDOUBLE` is the x87 80-bit
 //! extended type (64-bit significand, round to nearest even). `sum()` (`rsum`) and `mean()`
-//! (`real_mean`) in R's `src/main/summary.c` accumulate in it; on arm64 it is plain `double`,
-//! which is what [`crate::linalg::mean`] follows. Only finite, normal-range values are handled
+//! (`real_mean`) in R's `src/main/summary.c` accumulate in it (on arm64 it is plain `double`).
+//! [`crate::linalg::mean`] routes finite input here. Only finite, normal-range values are handled
 //! (no overflow or subnormal results), which is all these sums see.
 
 /// A finite x87 extended value `(-1)^neg * m * 2^e`, `m` normalised (top bit set) or zero.

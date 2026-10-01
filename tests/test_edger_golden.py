@@ -1,10 +1,10 @@
 """edge_rust.run against every edgeR run in the count golden corpus.
 
-The strict numeric gate (1e-8 relative, with the F band for everything derived from F) is the
-Rust end-to-end test, ``crates/edger-core/tests/e2e.rs``; the numbers pass through the Python
+The strict numeric gate (1e-8 relative, with the F band checked for everything derived from F) is
+the Rust end-to-end test, ``crates/edger-core/tests/e2e.rs``; the numbers pass through the Python
 layer unchanged. This test checks what the Python layer owns: row order, GroupId type, column
-names, NA pattern, the ANOVA string shaping and the significance flag, with the numbers at the
-tolerances the Rust test measured (F-derived columns reach 1e-5 relative where F is near 0).
+names, NA pattern, the ANOVA string shaping and the significance flag, with the numbers at plain
+1e-8 relative (the Rust test measures every column within 2e-12 of the reference).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ if not RUNS:
     pytest.skip(f"no edgeR runs under {CORPUS}", allow_module_level=True)
 
 TIGHT = 1e-8  # AveExpr, Log2FC, MaxLog2FC
-F_DERIVED = 2e-5  # PValue, AdjPValue, stat, SE, CI (see module docstring)
+F_DERIVED = 1e-8  # PValue, AdjPValue, stat, SE, CI (see module docstring)
 
 
 def manifest(run: str) -> dict:

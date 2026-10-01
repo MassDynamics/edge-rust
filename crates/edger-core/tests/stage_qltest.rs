@@ -102,7 +102,7 @@ fn glm_ql_ftest_on_every_edger_run() {
                 0.0,
             );
             check("F", &t.f, &g.f64s("F"), 1.0, 1e-8);
-            check("df_total", &t.df_total, &g.f64s("df_total"), 0.0, 1e-7);
+            check("df_total", &t.df_total, &g.f64s("df_total"), 0.0, 1e-8);
             for k in 0..t.ncon {
                 let col = if t.ncon == 1 {
                     "logFC".to_string()

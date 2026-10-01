@@ -4,9 +4,9 @@
 //! `rsort_with_index` (`src/main/sort.c`).
 
 use crate::glm::{glm_fit, glm_fit_shrunk, unit_nb_deviance};
-use crate::lapack::qr_decompose_r45;
 use crate::ql_weights::compute_weight;
 use rnum::ebayes::{fit_f_dist_unequal_df1, order_desc, squeeze_var};
+use rnum::linpack::qr_decompose;
 use rnum::lowess::clowess;
 use rnum::Result;
 
@@ -41,7 +41,7 @@ pub struct QlFit {
 
 /// `qr_hat`: leverages of `x` (column-major `n x p`) from `dqrdc2` (`tol = 1e-7`) and `dqrqy`.
 fn qr_hat(x: &[f64], n: usize, p: usize) -> Vec<f64> {
-    let qr = qr_decompose_r45(x, n, p, 1e-7);
+    let qr = qr_decompose(x, n, p, 1e-7);
     let mut h = vec![0.0; n];
     let mut e = vec![0.0; n];
     for i in 0..qr.rank {

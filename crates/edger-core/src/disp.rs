@@ -6,9 +6,9 @@
 use crate::apl::adjusted_profile_lik;
 use crate::glm::{ave_log_cpm, glm_fit};
 use crate::interp::maximize_interpolant;
-use crate::lapack::qr_decompose_r45;
 use rnum::ebayes::squeeze_var;
 use rnum::glibm_pow::pow;
+use rnum::linpack::qr_decompose;
 use rnum::locfit::{locfit, LocfitOptions};
 use rnum::quad::choose_lowess_span;
 use rnum::Result;
@@ -63,7 +63,7 @@ fn qr_rank_rows(
             sub.push(x[j * n + i]);
         }
     }
-    let qr = qr_decompose_r45(&sub, m, p, 1e-7);
+    let qr = qr_decompose(&sub, m, p, 1e-7);
     (qr.rank, qr.pivot, sub, m)
 }
 

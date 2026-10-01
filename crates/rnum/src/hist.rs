@@ -74,7 +74,10 @@ pub fn hist_full(
     right: bool,
     fuzz: f64,
 ) -> Result<Histogram, String> {
-    assert!(breaks.len() > 1, "hist: explicit breaks need at least two values");
+    assert!(
+        breaks.len() > 1,
+        "hist: explicit breaks need at least two values"
+    );
     let x: Vec<f64> = x.iter().copied().filter(|v| v.is_finite()).collect();
     let n = x.len();
     let mut breaks = breaks.to_vec();
@@ -88,10 +91,15 @@ pub fn hist_full(
         } else if nb <= 3 {
             let (mn, mx) = x
                 .iter()
-                .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| (a.min(v), b.max(v)));
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| {
+                    (a.min(v), b.max(v))
+                });
             mx - mn
         } else {
-            h.iter().copied().filter(|&v| v > 0.0).fold(f64::INFINITY, f64::min)
+            h.iter()
+                .copied()
+                .filter(|&v| v > 0.0)
+                .fold(f64::INFINITY, f64::min)
         };
     let fuzzv: Vec<f64> = if right {
         let mut f = vec![diddle; nb];
@@ -108,7 +116,18 @@ pub fn hist_full(
     if (total as usize) < n {
         return Err("some 'x' not counted; maybe 'breaks' do not span range of 'x'".into());
     }
-    let density = counts.iter().zip(&h).map(|(&c, &hh)| c as f64 / (n as f64 * hh)).collect();
-    let mids = (0..nb - 1).map(|i| 0.5 * (breaks[i + 1] + breaks[i])).collect();
-    Ok(Histogram { breaks, counts, density, mids })
+    let density = counts
+        .iter()
+        .zip(&h)
+        .map(|(&c, &hh)| c as f64 / (n as f64 * hh))
+        .collect();
+    let mids = (0..nb - 1)
+        .map(|i| 0.5 * (breaks[i + 1] + breaks[i]))
+        .collect();
+    Ok(Histogram {
+        breaks,
+        counts,
+        density,
+        mids,
+    })
 }

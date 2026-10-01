@@ -6,7 +6,8 @@ use rnum::{glibm, glibm_log1p};
 fn corpus_dir() -> std::path::PathBuf {
     match std::env::var("MD_COUNT_CORPUS_DIR") {
         Ok(d) => d.into(),
-        Err(_) => std::path::PathBuf::from(std::env::var("HOME").unwrap()).join("wd/md-count-golden-corpus"),
+        Err(_) => std::path::PathBuf::from(std::env::var("HOME").unwrap())
+            .join("wd/md-count-golden-corpus"),
     }
 }
 
