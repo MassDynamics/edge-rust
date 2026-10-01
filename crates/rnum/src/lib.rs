@@ -25,12 +25,16 @@
 pub mod contrasts;
 pub mod ebayes;
 pub mod fit;
+pub mod hist;
 pub mod linalg;
 pub mod linpack;
+pub mod locfit;
+pub mod loess;
 pub mod lowess;
 pub mod nmath;
 pub mod optim;
 pub mod quad;
+pub mod rng;
 pub mod splines;
 pub mod toptable;
 
