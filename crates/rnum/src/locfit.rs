@@ -222,7 +222,13 @@ fn needs_split(d: &Data, vs: &[Vertex], lo: usize, hi: usize) -> bool {
 }
 
 /// `atree_grow` + `newsplit` (d = 1): recursive midpoint splitting, left half first.
-fn grow(d: &Data, pc: (f64, &[f64]), vs: &mut Vec<Vertex>, cells: &mut Vec<Cell>, c: usize) -> Result<()> {
+fn grow(
+    d: &Data,
+    pc: (f64, &[f64]),
+    vs: &mut Vec<Vertex>,
+    cells: &mut Vec<Cell>,
+    c: usize,
+) -> Result<()> {
     let (lo, hi) = (cells[c].lo, cells[c].hi);
     if !needs_split(d, vs, lo, hi) {
         return Ok(());
@@ -288,15 +294,15 @@ fn fit_vertex(d: &Data, x0: f64, xbar: f64, pc: &[f64]) -> (f64, f64, f64) {
     // nbhd: keep the points with positive weight, in data order.
     let mut ind = Vec::new();
     let mut wt = Vec::new();
-    for i in 0..n {
+    for (i, &dist) in di.iter().enumerate() {
         let w = if h == 0.0 {
-            if di[i] == 0.0 {
+            if dist == 0.0 {
                 1.0
             } else {
                 0.0
             }
         } else {
-            let u = di[i] / h;
+            let u = dist / h;
             if u > 1.0 {
                 0.0
             } else {
@@ -582,6 +588,8 @@ impl Locfit {
 }
 
 #[cfg(test)]
+// The expected values are R output printed to 17 significant digits.
+#[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
 
@@ -629,7 +637,9 @@ mod tests {
         // predict(locfit(y ~ x, weights = w), c(-3.9, -1.234, 0, 2.5, 7.3, 9))
         // predict(locfit(y ~ x, weights = w, alpha = 0.3, deg = 0), c(-3.9, -1.234, 0, 2.5, 7.3))
         let n = 200;
-        let x: Vec<f64> = (0..n).map(|i| (i as f64 * 1.7).sin() * 4.0 + i as f64 / 50.0).collect();
+        let x: Vec<f64> = (0..n)
+            .map(|i| (i as f64 * 1.7).sin() * 4.0 + i as f64 / 50.0)
+            .collect();
         let y: Vec<f64> = (0..n)
             .map(|i| (i as f64 * 0.9).cos() + 0.1 * x[i] * x[i] - 0.3 * x[i])
             .collect();

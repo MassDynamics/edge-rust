@@ -17,6 +17,7 @@ pub(crate) mod dpq;
 
 pub mod f;
 pub mod gamma;
+pub mod nbinom;
 pub mod pbeta;
 pub mod pgamma;
 pub mod pnorm;

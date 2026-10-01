@@ -19,7 +19,12 @@ fn m0_from_l0_on_every_edger_run() {
         let m0 = read_csv(&run, "edger_disp_m0").matrix();
         let sel = read_csv(&run, "edger_disp_sel").bools("sel");
         let ave = read_csv(&run, "edger_disp").f64s("ave_logcpm_common");
-        let x: Vec<f64> = ave.iter().zip(&sel).filter(|(_, &s)| s).map(|(&a, _)| a).collect();
+        let x: Vec<f64> = ave
+            .iter()
+            .zip(&sel)
+            .filter(|(_, &s)| s)
+            .map(|(&a, _)| a)
+            .collect();
         assert_eq!(x.len(), l0.len());
         // WLEB's default span; reference.json keeps 15 significant digits.
         let span = choose_lowess_span(x.len(), 50.0, 0.3, 1.0 / 3.0);
