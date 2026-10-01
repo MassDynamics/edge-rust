@@ -14,8 +14,8 @@ use crate::filter::filter_by_expr;
 use crate::norm::calc_norm_factors;
 use crate::ql::glm_ql_fit;
 use crate::qltest::glm_ql_ftest;
+use crate::lapack::qr_decompose_r45;
 use rnum::glibm::ln;
-use rnum::linpack::qr_decompose;
 use rnum::nmath::qt;
 use rnum::{LimmaError, Result};
 
@@ -220,7 +220,7 @@ pub fn run_edger(input: &EdgerInput) -> Result<EdgerOutput> {
         return Err(err("edgeR requires at least 2 condition levels."));
     }
     // checkMatrixRank: qr(designMat)$rank < ncol(designMat).
-    if qr_decompose(&design, nlib, p, 1e-7).rank < p {
+    if qr_decompose_r45(&design, nlib, p, 1e-7).rank < p {
         let mut preds = vec![input.condition_col.clone()];
         preds.extend(input.controls.iter().map(|c| c.name.clone()));
         return Err(err(format!(

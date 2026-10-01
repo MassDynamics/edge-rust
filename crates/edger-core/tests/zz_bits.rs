@@ -84,6 +84,7 @@ fn bits() {
         let q = glm_ql_fit(&fx.counts, fx.nlib, &fx.design, fx.p, &fx.offset, &ave, &fb(&run, "edger_disp", "trended")).unwrap();
         let t = read_csv(&run, "edger_ql_fit");
         out.push(format!("qdisp {}", cmp(&[q.dispersion], &fb(&run, "scalar", "edger_ql_dispersion"))));
+        out.push(format!("aqd {}", cmp(&[q.ave_ql_dispersion], &fb(&run, "scalar", "edger_ql_ave_ql_dispersion"))));
         out.push(format!("dev1 {}", cmp(&q.deviance_first, &fb(&run, "edger_ql_fit", "deviance_first"))));
         out.push(format!("dev {}", cmp(&q.deviance, &fb(&run, "edger_ql_fit", "deviance"))));
         out.push(format!("s2 {}", cmp(&q.s2, &fb(&run, "edger_ql_fit", "s2"))));

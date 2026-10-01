@@ -5,7 +5,7 @@
 use crate::glm::{compute_xtwx, glm_fit, GlmFit};
 use crate::lapack::dsytf2_upper;
 use rnum::glibm::ln;
-use rnum::nmath::lgammafn;
+use rnum::glibm_lgamma::lgamma as lgammafn;
 
 /// `compute_adj_profile_ll(do_adjust = TRUE)` for gene-major `y` and `mu` and one dispersion
 /// per gene.

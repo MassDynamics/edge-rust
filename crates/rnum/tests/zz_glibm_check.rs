@@ -13,3 +13,57 @@ fn glibm_vs_r() {
     println!("exp mismatches {bad} (system {badsys}) of {m}; log mismatches {badl} of {}", 2 * k);
     assert_eq!(bad + badl, 0);
 }
+
+#[test]
+fn ldouble_vs_r() {
+    let Ok(dir) = std::env::var("GLIBM_SAMPLES") else { return };
+    let Ok(b) = std::fs::read(format!("{dir}/sums.bin")) else { return };
+    let v: Vec<f64> = b.chunks_exact(8).map(|c| f64::from_le_bytes(c.try_into().unwrap())).collect();
+    let (mut i, mut k, mut bs, mut bm, mut dm) = (0, 0, 0, 0, 0);
+    while i < v.len() {
+        let n = v[i] as usize;
+        let x = &v[i + 1..i + 1 + n];
+        let (s, m) = (v[i + 1 + n], v[i + 2 + n]);
+        if rnum::ldouble::sum(x).to_bits() != s.to_bits() { bs += 1; }
+        if rnum::ldouble::mean(x).to_bits() != m.to_bits() { bm += 1; }
+        if rnum::linalg::mean(x).to_bits() != m.to_bits() { dm += 1; }
+        i += n + 3;
+        k += 1;
+    }
+    println!("{k} vectors: sum mismatches {bs}, mean mismatches {bm} (double mean {dm})");
+    assert_eq!(bs + bm, 0);
+}
+
+#[test]
+fn lgamma_vs_c() {
+    let Ok(dir) = std::env::var("LGAMMA_SAMPLES") else { return };
+    let x = rd(&format!("{dir}/in.bin"));
+    let y = rd(&format!("{dir}/out.bin"));
+    let bad: Vec<usize> = (0..x.len()).filter(|&i| rnum::glibm_lgamma::lgamma(x[i]).to_bits() != y[i].to_bits()).collect();
+    let badr = (0..x.len()).filter(|&i| rnum::nmath::lgammafn(x[i]).to_bits() != y[i].to_bits()).count();
+    for &i in bad.iter().take(10) { println!("x={:e} got {:e} want {:e}", x[i], rnum::glibm_lgamma::lgamma(x[i]), y[i]); }
+    println!("lgamma mismatches {} (lgammafn {badr}) of {}", bad.len(), x.len());
+    assert!(bad.is_empty());
+}
+
+#[test]
+fn pow_vs_c() {
+    let Ok(f) = std::env::var("POW_SAMPLES") else { return };
+    let v = rd(&f);
+    let n = v.len() / 2;
+    let bad = (0..n).filter(|&i| rnum::glibm_pow::pow(2.0, v[2 * i]).to_bits() != v[2 * i + 1].to_bits()).count();
+    let bads = (0..n).filter(|&i| 2f64.powf(v[2 * i]).to_bits() != v[2 * i + 1].to_bits()).count();
+    println!("pow mismatches {bad} (system {bads}) of {n}");
+    assert_eq!(bad, 0);
+}
+
+#[test]
+fn log2_vs_c() {
+    let Ok(f) = std::env::var("LOG2_SAMPLES") else { return };
+    let v = rd(&f);
+    let n = v.len() / 2;
+    let bad = (0..n).filter(|&i| rnum::glibm_log2::log2(v[2 * i]).to_bits() != v[2 * i + 1].to_bits()).count();
+    let bads = (0..n).filter(|&i| v[2 * i].log2().to_bits() != v[2 * i + 1].to_bits()).count();
+    println!("log2 mismatches {bad} (system {bads}) of {n}");
+    assert_eq!(bad, 0);
+}

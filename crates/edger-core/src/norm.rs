@@ -3,7 +3,10 @@
 //! (`.calcFactorQuantile`) and `none`, as the reference's `plain_norm_factors` writes them out.
 
 use rnum::glibm::{exp, ln};
-use rnum::linalg::{mean, median, quantile7, rank_average};
+use rnum::glibm_log2::log2;
+use rnum::glibm_pow::pow;
+use rnum::ldouble::{mean, row_mean, sum};
+use rnum::linalg::{median, quantile7, rank_average};
 use rnum::{LimmaError, Result};
 
 /// Normalisation factors (scaled to unit geometric mean) and, for TMM, the 0-based reference
@@ -20,8 +23,8 @@ fn tmm(obs: &[f64], rf: &[f64], n_o: f64, n_r: f64) -> f64 {
     let mut abs_e = Vec::new();
     let mut v = Vec::new();
     for (&o, &r) in obs.iter().zip(rf) {
-        let lr = ((o / n_o) / (r / n_r)).log2();
-        let ae = ((o / n_o).log2() + (r / n_r).log2()) / 2.0;
+        let lr = log2((o / n_o) / (r / n_r));
+        let ae = (log2(o / n_o) + log2(r / n_r)) / 2.0;
         let vv = (n_o - o) / n_o / o + (n_r - r) / n_r / r;
         if lr.is_finite() && ae.is_finite() && ae > -1e10 {
             log_r.push(lr);
@@ -39,25 +42,26 @@ fn tmm(obs: &[f64], rf: &[f64], n_o: f64, n_r: f64) -> f64 {
     let hi_s = n + 1.0 - lo_s;
     let rl = rank_average(&log_r);
     let re = rank_average(&abs_e);
-    let mut num = 0.0;
-    let mut den = 0.0;
+    // sum(..., na.rm = TRUE): R accumulates in long double.
+    let mut num = Vec::new();
+    let mut den = Vec::new();
     for i in 0..log_r.len() {
         if rl[i] >= lo_l && rl[i] <= hi_l && re[i] >= lo_s && re[i] <= hi_s {
             let a = log_r[i] / v[i];
             let b = 1.0 / v[i];
             if !a.is_nan() {
-                num += a;
+                num.push(a);
             }
             if !b.is_nan() {
-                den += b;
+                den.push(b);
             }
         }
     }
-    let f = num / den;
+    let f = sum(&num) / sum(&den);
     if f.is_nan() {
         1.0
     } else {
-        2f64.powf(f)
+        pow(2.0, f)
     }
 }
 
@@ -93,7 +97,7 @@ pub fn calc_norm_factors(
             let f75 = q75();
             let r = if median(&f75) < 1e-20 {
                 let s: Vec<f64> = (0..nlib)
-                    .map(|j| col(j).iter().map(|v| v.sqrt()).sum())
+                    .map(|j| sum(&col(j).iter().map(|v| v.sqrt()).collect::<Vec<_>>()))
                     .collect();
                 argmax(&s)
             } else {
@@ -110,7 +114,7 @@ pub fn calc_norm_factors(
         "RLE" => {
             let gm: Vec<f64> = x
                 .iter()
-                .map(|r| exp(r.iter().map(|v| ln(*v)).sum::<f64>() / nlib as f64))
+                .map(|r| exp(row_mean(&r.iter().map(|v| ln(*v)).collect::<Vec<_>>())))
                 .collect();
             (0..nlib)
                 .map(|j| {

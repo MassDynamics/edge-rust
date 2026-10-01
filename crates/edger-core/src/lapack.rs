@@ -420,6 +420,103 @@ pub(crate) fn lu_solve(a: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     Some(x)
 }
 
+/// R's `qr(x, tol)` (LINPACK `dqrdc2`, `src/appl/dqrdc2.f`) with R 4.5's BLAS `dnrm2` (Blue's
+/// algorithm, from the LAPACK 3.12 reference BLAS). `rnum::linpack::qr_decompose` uses the older
+/// scaled-sum `dnrm2`, which differs from the reference image in the last bit, so edgeR's QRs
+/// go through this copy. `x` is column-major `n x p`.
+pub(crate) fn qr_decompose_r45(x: &[f64], n: usize, p: usize, tol: f64) -> rnum::linpack::Qr {
+    let mut x = x.to_vec();
+    let col = |j: usize| j * n;
+    let mut qraux = vec![0.0; p];
+    let mut jpvt: Vec<usize> = (0..p).collect();
+    let mut work = vec![0.0; 2 * p];
+    for j in 0..p {
+        let nrm = dnrm2(&x[col(j)..col(j) + n]);
+        qraux[j] = nrm;
+        work[j] = nrm;
+        work[p + j] = if nrm == 0.0 { 1.0 } else { nrm };
+    }
+    let mut k = p + 1;
+    for l in 1..=n.min(p) {
+        let li = l - 1;
+        while l < k && qraux[li] < work[p + li] * tol {
+            for i in 0..n {
+                let t = x[col(li) + i];
+                for j in (l + 1)..=p {
+                    x[col(j - 2) + i] = x[col(j - 1) + i];
+                }
+                x[col(p - 1) + i] = t;
+            }
+            let (i, t, tt, ttt) = (jpvt[li], qraux[li], work[li], work[p + li]);
+            for j in (l + 1)..=p {
+                jpvt[j - 2] = jpvt[j - 1];
+                qraux[j - 2] = qraux[j - 1];
+                work[j - 2] = work[j - 1];
+                work[p + j - 2] = work[p + j - 1];
+            }
+            jpvt[p - 1] = i;
+            qraux[p - 1] = t;
+            work[p - 1] = tt;
+            work[p + p - 1] = ttt;
+            k -= 1;
+        }
+        if l == n {
+            continue;
+        }
+        let mut nrmxl = dnrm2(&x[col(li) + li..col(li) + n]);
+        if nrmxl == 0.0 {
+            continue;
+        }
+        let xll = x[col(li) + li];
+        if xll != 0.0 {
+            nrmxl = nrmxl.abs() * if xll < 0.0 { -1.0 } else { 1.0 };
+        }
+        let s = 1.0 / nrmxl;
+        for i in li..n {
+            x[col(li) + i] *= s;
+        }
+        x[col(li) + li] += 1.0;
+        for j in (l + 1)..=p {
+            let ji = j - 1;
+            let (head, tail) = x.split_at_mut(col(ji));
+            let xl = &head[col(li) + li..col(li) + n];
+            let xj = &mut tail[li..n];
+            let mut dot = 0.0;
+            for i in 0..xl.len() {
+                dot += xl[i] * xj[i];
+            }
+            let t = -dot / xl[0];
+            if t != 0.0 {
+                for i in 0..xl.len() {
+                    xj[i] += t * xl[i];
+                }
+            }
+            if qraux[ji] != 0.0 {
+                let r = xj[0].abs() / qraux[ji];
+                let tt = (1.0 - r * r).max(0.0);
+                if tt.abs() >= 1e-6 {
+                    qraux[ji] *= tt.sqrt();
+                } else {
+                    qraux[ji] = dnrm2(&xj[1..]);
+                    work[ji] = qraux[ji];
+                }
+            }
+        }
+        qraux[li] = x[col(li) + li];
+        x[col(li) + li] = -nrmxl;
+    }
+    let rank = if p == 0 { 0 } else { (k - 1).min(n) };
+    rnum::linpack::Qr {
+        qr: x,
+        n,
+        p,
+        qraux,
+        pivot: jpvt,
+        rank,
+        tol,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,8 +6,9 @@
 use crate::apl::adjusted_profile_lik;
 use crate::glm::{ave_log_cpm, glm_fit};
 use crate::interp::maximize_interpolant;
+use crate::lapack::qr_decompose_r45;
 use rnum::ebayes::squeeze_var;
-use rnum::linpack::qr_decompose;
+use rnum::glibm_pow::pow;
 use rnum::locfit::{locfit, LocfitOptions};
 use rnum::quad::choose_lowess_span;
 use rnum::Result;
@@ -62,7 +63,7 @@ fn qr_rank_rows(
             sub.push(x[j * n + i]);
         }
     }
-    let qr = qr_decompose(&sub, m, p, 1e-7);
+    let qr = qr_decompose_r45(&sub, m, p, 1e-7);
     (qr.rank, qr.pivot, sub, m)
 }
 
@@ -145,7 +146,7 @@ pub fn estimate_disp(
         .collect();
     let nsel = sely.len() / nlib;
     let pts: Vec<f64> = (0..NGRID).map(|i| -10.0 + i as f64).collect();
-    let grid: Vec<f64> = pts.iter().map(|t| 0.1 * 2f64.powf(*t)).collect();
+    let grid: Vec<f64> = pts.iter().map(|t| 0.1 * pow(2.0, *t)).collect();
     let mut l0 = vec![0.0; nsel * NGRID];
 
     let fit005 = glm_fit(&sely, nlib, x, p, offset, &vec![0.05; nsel], None);
@@ -195,10 +196,14 @@ pub fn estimate_disp(
     }
 
     let colsum: Vec<f64> = (0..NGRID)
-        .map(|j| (0..nsel).map(|g| l0[g * NGRID + j]).sum())
+        .map(|j| {
+            // colSums(l0): R accumulates in long double.
+            let col: Vec<f64> = (0..nsel).map(|g| l0[g * NGRID + j]).collect();
+            rnum::ldouble::sum(&col)
+        })
         .collect();
     let overall = maximize_interpolant(&pts, &colsum)[0];
-    let common = 0.1 * 2f64.powf(overall);
+    let common = 0.1 * pow(2.0, overall);
     let ave = ave_log_cpm(y, nlib, lib_eff, common, 2.0);
     let ave_sel: Vec<f64> = ave
         .iter()
@@ -211,7 +216,7 @@ pub fn estimate_disp(
     let m0 = locfit_by_col(&l0, NGRID, &ave_sel, span)?;
     let trend: Vec<f64> = maximize_interpolant(&pts, &m0)
         .iter()
-        .map(|t| 0.1 * 2f64.powf(*t))
+        .map(|t| 0.1 * pow(2.0, *t))
         .collect();
     let mut imin = 0;
     for i in 1..nsel {
@@ -256,7 +261,7 @@ pub fn estimate_disp(
         let mut k = 0;
         for g in 0..ntags {
             if sel[g] {
-                tagwise[g] = 0.1 * 2f64.powf(ind[k]);
+                tagwise[g] = 0.1 * pow(2.0, ind[k]);
                 k += 1;
             }
         }

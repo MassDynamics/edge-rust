@@ -4,9 +4,9 @@
 //! `rsort_with_index` (`src/main/sort.c`).
 
 use crate::glm::{glm_fit, glm_fit_shrunk, unit_nb_deviance};
+use crate::lapack::qr_decompose_r45;
 use crate::ql_weights::compute_weight;
 use rnum::ebayes::{fit_f_dist_unequal_df1, order_desc, squeeze_var};
-use rnum::linpack::qr_decompose;
 use rnum::lowess::clowess;
 use rnum::Result;
 
@@ -37,7 +37,7 @@ pub struct QlFit {
 
 /// `qr_hat`: leverages of `x` (column-major `n x p`) from `dqrdc2` (`tol = 1e-7`) and `dqrqy`.
 fn qr_hat(x: &[f64], n: usize, p: usize) -> Vec<f64> {
-    let qr = qr_decompose(x, n, p, 1e-7);
+    let qr = qr_decompose_r45(x, n, p, 1e-7);
     let mut h = vec![0.0; n];
     let mut e = vec![0.0; n];
     for i in 0..qr.rank {
@@ -191,11 +191,9 @@ pub fn glm_ql_fit(
     let ng = y.len() / nlib;
     let top_n = (0.1 * ng as f64).ceil() as usize;
     let top = order_desc(ave);
-    let mut s = 0.0;
-    for &i in &top[..top_n] {
-        s += trended[i];
-    }
-    let disp_raw = s / top_n as f64;
+    // mean(y$trended.dispersion[i]): R's long double mean.
+    let sel: Vec<f64> = top[..top_n].iter().map(|&i| trended[i]).collect();
+    let disp_raw = rnum::ldouble::mean(&sel);
     let disp = disp_raw.min(4.0);
     let fit0 = glm_fit(y, nlib, x, p, offset, &vec![disp; ng], None);
     let aqd = update_prior(y, &fit0.fitted, nlib, x, p, disp, ave);
