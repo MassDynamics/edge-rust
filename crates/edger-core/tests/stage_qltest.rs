@@ -78,7 +78,8 @@ fn glm_ql_ftest_on_every_edger_run() {
         for (label, con, nc) in tests {
             let t = glm_ql_ftest(
                 &fx.counts, fx.nlib, &fx.design, fx.p, &fx.offset, &q, &con, nc,
-            );
+            )
+            .unwrap();
             let g = read_csv(&run, &format!("edger_test_{label}"));
             let mut check = |what: &str, got: &[f64], want: &[f64], floor: f64, tol: f64| {
                 let m = max_rel_floor(&format!("{run} {label} {what}"), got, want, floor);

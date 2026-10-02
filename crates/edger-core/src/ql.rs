@@ -8,7 +8,7 @@ use crate::ql_weights::compute_weight;
 use rnum::ebayes::{fit_f_dist_unequal_df1, order_desc, squeeze_var};
 use rnum::linpack::qr_decompose;
 use rnum::lowess::clowess;
-use rnum::Result;
+use rnum::{LimmaError, Result};
 
 const THRESHOLD_ZERO: f64 = 1e-4;
 
@@ -137,7 +137,7 @@ fn rcmp_gt(a: f64, b: f64) -> bool {
 
 /// `compute_prior`: the 90th percentile of the lowess trend of `s2^(1/4)` on AveLogCPM, floored
 /// at 1, to the fourth power.
-fn compute_prior(ave: &[f64], s2: &[f64], df: &[f64]) -> f64 {
+fn compute_prior(ave: &[f64], s2: &[f64], df: &[f64]) -> Result<f64> {
     let mut xx = Vec::new();
     let mut yy = Vec::new();
     for i in 0..ave.len() {
@@ -147,6 +147,11 @@ fn compute_prior(ave: &[f64], s2: &[f64], df: &[f64]) -> f64 {
         }
     }
     let k = xx.len();
+    if k == 0 {
+        return Err(LimmaError::Invalid(
+            "no gene has residual degrees of freedom left to estimate the QL prior".into(),
+        ));
+    }
     let mut ind: Vec<usize> = (0..k).collect();
     rsort_with_index(&mut xx, &mut ind);
     let delta = 0.01 * (xx[k - 1] - xx[0]);
@@ -160,7 +165,7 @@ fn compute_prior(ave: &[f64], s2: &[f64], df: &[f64]) -> f64 {
     if p < 1.0 {
         p = 1.0;
     }
-    p * p * p * p
+    Ok(p * p * p * p)
 }
 
 /// `update_prior` (`.cxx_compute_ave_qd`): two rounds of adjust + prior, starting from 1.
@@ -172,13 +177,13 @@ fn update_prior(
     p: usize,
     disp: f64,
     ave: &[f64],
-) -> f64 {
+) -> Result<f64> {
     let mut prior = 1.0;
     for _ in 0..2 {
         let (df, _, s2) = adjust_vec(y, mu, nlib, x, p, disp, prior);
-        prior = compute_prior(ave, &s2, &df);
+        prior = compute_prior(ave, &s2, &df)?;
     }
-    prior
+    Ok(prior)
 }
 
 /// `glmQLFit(estimateDisp(y), design, legacy = FALSE)`: the scalar NB dispersion is the mean
@@ -192,16 +197,29 @@ pub fn glm_ql_fit(
     ave: &[f64],
     trended: &[f64],
 ) -> Result<QlFit> {
+    // R fails in glmQLFit's `if` on the NA dispersion estimateDisp returns without residual df.
+    if nlib <= p || y.is_empty() {
+        return Err(LimmaError::Invalid(format!(
+            "missing value where TRUE/FALSE needed ({} genes, {nlib} samples, {p} design columns)",
+            y.len().checked_div(nlib).unwrap_or(0)
+        )));
+    }
     let ng = y.len() / nlib;
     let top_n = (0.1 * ng as f64).ceil() as usize;
     let top = order_desc(ave);
     // mean(y$trended.dispersion[i]): R's long double mean.
     let sel: Vec<f64> = top[..top_n].iter().map(|&i| trended[i]).collect();
     let disp_raw = rnum::ldouble::mean(&sel);
+    // `if (max(dispersion) > 4)`: an NA dispersion is an error in R, not a cap.
+    if disp_raw.is_nan() {
+        return Err(LimmaError::Invalid(
+            "missing value where TRUE/FALSE needed".into(),
+        ));
+    }
     let disp = disp_raw.min(4.0);
-    let fit0 = glm_fit(y, nlib, x, p, offset, &vec![disp; ng], None);
-    let aqd = update_prior(y, &fit0.fitted, nlib, x, p, disp, ave);
-    let (fit, unshrunk) = glm_fit_shrunk(y, nlib, x, p, offset, &vec![disp / aqd; ng], 0.125);
+    let fit0 = glm_fit(y, nlib, x, p, offset, &vec![disp; ng], None)?;
+    let aqd = update_prior(y, &fit0.fitted, nlib, x, p, disp, ave)?;
+    let (fit, unshrunk) = glm_fit_shrunk(y, nlib, x, p, offset, &vec![disp / aqd; ng], 0.125)?;
     let (df_adj, dev_adj, s2) = adjust_vec(y, &fit.fitted, nlib, x, p, disp, aqd);
     let s2_in: Vec<f64> = s2
         .iter()

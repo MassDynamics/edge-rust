@@ -25,7 +25,11 @@ RUNS = sorted(
     if p.name.startswith(("count_", "edge_"))
 )
 if not RUNS:
-    pytest.skip(f"no edgeR runs under {CORPUS}", allow_module_level=True)
+    # A missing corpus fails the suite; skipping it silently turned the gate green with no parity
+    # check (review r1, R1). Set EDGE_RUST_ALLOW_NO_CORPUS=1 to run the rest without it.
+    if os.environ.get("EDGE_RUST_ALLOW_NO_CORPUS") == "1":
+        pytest.skip(f"no edgeR runs under {CORPUS}", allow_module_level=True)
+    pytest.fail(f"no edgeR runs under {CORPUS} (set MD_COUNT_CORPUS_DIR)", pytrace=False)
 
 TIGHT = 1e-8  # AveExpr, Log2FC, MaxLog2FC
 F_DERIVED = 1e-8  # PValue, AdjPValue, stat, SE, CI (see module docstring)

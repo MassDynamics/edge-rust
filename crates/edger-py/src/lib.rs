@@ -4,13 +4,38 @@
 
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use edger_core::pipeline::{
     max_abs_log2fc, run_edger_diag, Comparison, Control, ControlKind, EdgerInput,
 };
+
+/// Run `f` without the GIL. Engine errors become `ValueError`; a panic becomes `RuntimeError`
+/// instead of pyo3's `PanicException`, which derives from `BaseException` and so escapes
+/// `except Exception`.
+fn guarded<T: Send>(py: Python<'_>, f: impl FnOnce() -> rnum::Result<T> + Send) -> PyResult<T> {
+    match py.allow_threads(|| std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))) {
+        Ok(r) => r.map_err(|e| PyValueError::new_err(e.to_string())),
+        Err(payload) => {
+            let msg = payload
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".into());
+            Err(PyRuntimeError::new_err(format!(
+                "internal error in the edgeR engine: {msg}"
+            )))
+        }
+    }
+}
+
+/// Test hook: a panic inside [`guarded`], to check that it reaches Python as `RuntimeError`.
+#[pyfunction]
+fn _selftest_panic(py: Python<'_>) -> PyResult<()> {
+    guarded(py, || -> rnum::Result<()> { panic!("selftest panic") })
+}
 
 fn vector<'py>(py: Python<'py>, data: Vec<f64>) -> Bound<'py, PyAny> {
     Array1::from_vec(data).into_pyarray(py).into_any()
@@ -25,7 +50,7 @@ fn vector<'py>(py: Python<'py>, data: Vec<f64>) -> Bound<'py, PyAny> {
 /// `label`, `Log2FC`, `stat`, `SE`, `CILeft`, `CIRight`, `F`, `PValue`, `AdjPValue`),
 /// `max_pair` (index into `pairs` or None, per gene), `max_log2fc`, `design_cols` and `kept`,
 /// every vector over all input genes in input order. Engine errors raise `ValueError` with the
-/// production message.
+/// production message; an internal panic raises `RuntimeError`.
 ///
 /// With `diagnostics`, the dict also has `diag`: `kept_idx` (indices of the genes
 /// `filterByExpr` kept) and, over those genes, `ave_log_cpm`, `trended_disp`, `tagwise_disp`,
@@ -93,9 +118,7 @@ fn edger_pipeline<'py>(
         norm_method: norm_method.to_string(),
         entity_type: entity_type.to_string(),
     };
-    let (out, diag) = py
-        .allow_threads(|| run_edger_diag(&input))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let (out, diag) = guarded(py, || run_edger_diag(&input))?;
     let (max_pair, max_log2fc) = max_abs_log2fc(&out.pairs);
 
     let d = PyDict::new(py);
@@ -172,5 +195,6 @@ fn matrix<'py>(
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(edger_pipeline, m)?)?;
+    m.add_function(wrap_pyfunction!(_selftest_panic, m)?)?;
     Ok(())
 }

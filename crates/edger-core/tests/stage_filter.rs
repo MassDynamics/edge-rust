@@ -16,7 +16,7 @@ fn filter_by_expr_on_every_edger_run() {
         let fx = fixture(&run);
         let want = read_csv(&run, "edger_filter");
         assert_eq!(want.strings("id"), fx.all_ids, "{run}: gene order");
-        let got = filter_by_expr(&fx.all_counts, fx.nlib, &fx.design, fx.p);
+        let got = filter_by_expr(&fx.all_counts, fx.nlib, &fx.design, fx.p).unwrap();
         assert_eq!(got.keep, want.bools("keep"), "{run}: keep");
         assert_close(&run, &got.n_above_cutoff, &want.f64s("n_above_cutoff"), 0.0);
         assert_close(&run, &got.total, &want.f64s("total"), 0.0);

@@ -145,7 +145,13 @@ pub fn build_design(input: &EdgerInput) -> Result<(Vec<f64>, Vec<String>, Vec<St
         }
         match c.kind {
             ControlKind::Categorical => {
-                for l in levels(&c.values).iter().skip(1) {
+                let clv = levels(&c.values);
+                if clv.len() < 2 {
+                    return Err(err(
+                        "contrasts can be applied only to factors with 2 or more levels",
+                    ));
+                }
+                for l in clv.iter().skip(1) {
                     design.extend(c.values.iter().map(|v| if v == l { 1.0 } else { 0.0 }));
                     cols.push(format!("{}{}", c.name, l));
                 }
@@ -158,6 +164,10 @@ pub fn build_design(input: &EdgerInput) -> Result<(Vec<f64>, Vec<String>, Vec<St
                             c.name
                         ))
                     })?;
+                    // model.matrix drops the NA row, and filterByExpr then stops.
+                    if x.is_nan() {
+                        return Err(err("nrow(design) disagrees with ncol(y)"));
+                    }
                     design.push(x);
                 }
                 cols.push(c.name.clone());
@@ -178,6 +188,9 @@ fn pair_contrast(cols: &[String], cc: &str, left: &str, right: &str) -> Result<V
     let mut c = vec![0.0; cols.len()];
     c[find(left)?] += 1.0;
     c[find(right)?] -= 1.0;
+    if c.iter().all(|&v| v == 0.0) {
+        return Err(err("contrasts are all zero"));
+    }
     Ok(c)
 }
 
@@ -229,9 +242,31 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
             "The data contains negative intensities. Please check if your data was log-transformed before starting the analysis.",
         ));
     }
+    // .buildCountMatrixFromLongDT: refuse non-integer counts, then as.integer(round(x)).
+    if input.counts.iter().any(|&v| (v - v.round()).abs() > 1e-6) {
+        let mut sums = vec![0.0; nlib];
+        for row in input.counts.chunks(nlib) {
+            for (s, v) in sums.iter_mut().zip(row) {
+                *s += v;
+            }
+        }
+        if sums.iter().all(|s| (s - 1e6).abs() < 1e3) {
+            return Err(err(
+                "Input data appears to be CPM/TPM-normalised (non-integer values, per-sample sums ~1e6). edgeR and DESeq2 require raw integer counts. Use de_method = 'limma' for pre-normalised data, or re-upload raw counts.",
+            ));
+        }
+        return Err(err(
+            "Non-integer values detected in the count column. edgeR and DESeq2 require raw integer counts as input. Use de_method = 'limma' for pre-normalised or continuous data.",
+        ));
+    }
+    let counts: Vec<f64> = input.counts.iter().map(|v| v.round()).collect();
 
     let (design, cols, lv) = build_design(input)?;
     let p = cols.len();
+    // qr() is a .Fortran call, which refuses a non-finite design.
+    if design.iter().any(|v| !v.is_finite()) {
+        return Err(err("NA/NaN/Inf in foreign function call (arg 1)"));
+    }
     // R already fails in model.matrix for a one-level factor; the engine says why.
     if lv.len() < 2 {
         return Err(err("edgeR requires at least 2 condition levels."));
@@ -246,7 +281,12 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
         )));
     }
 
-    let fb = filter_by_expr(&input.counts, nlib, &design, p);
+    // DGEList: as.integer() turned counts above .Machine$integer.max into NA.
+    if counts.iter().any(|&v| v > i32::MAX as f64) {
+        return Err(err("NA counts not allowed"));
+    }
+
+    let fb = filter_by_expr(&counts, nlib, &design, p)?;
     let kept_idx: Vec<usize> = (0..ng).filter(|&g| fb.keep[g]).collect();
     if kept_idx.is_empty() {
         return Err(err(
@@ -255,7 +295,7 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
     }
     let mut y = Vec::with_capacity(kept_idx.len() * nlib);
     for &g in &kept_idx {
-        y.extend_from_slice(&input.counts[g * nlib..(g + 1) * nlib]);
+        y.extend_from_slice(&counts[g * nlib..(g + 1) * nlib]);
     }
     // DGEList(...)[keep, , keep.lib.sizes = FALSE]: library sizes of the kept genes.
     let mut lib = vec![0.0; nlib];
@@ -296,7 +336,7 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
     for l in &lv[1..] {
         omni.extend(pair_contrast(&cols, &input.condition_col, l, &lv[0])?);
     }
-    let om = glm_ql_ftest(&y, nlib, &design, p, &offset, &ql, &omni, ncon);
+    let om = glm_ql_ftest(&y, nlib, &design, p, &offset, &ql, &omni, ncon)?;
 
     // CI df as production computes it: df.prior + df.residual (unadjusted).
     let df_ci: Vec<f64> = ql.df_prior.iter().map(|d| d + ql.df_residual).collect();
@@ -309,7 +349,7 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
             &cmp.encoded_left,
             &cmp.encoded_right,
         )?;
-        let t = glm_ql_ftest(&y, nlib, &design, p, &offset, &ql, &con, 1);
+        let t = glm_ql_ftest(&y, nlib, &design, p, &offset, &ql, &con, 1)?;
         let mut stat = vec![f64::NAN; nk];
         let mut se = vec![f64::NAN; nk];
         let mut lo = vec![f64::NAN; nk];

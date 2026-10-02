@@ -78,10 +78,10 @@ pub(crate) fn adjusted_profile_lik(
     p: usize,
     offset: &[f64],
     start: Option<&[f64]>,
-) -> (Vec<f64>, GlmFit) {
+) -> rnum::Result<(Vec<f64>, GlmFit)> {
     let ng = y.len() / nlib;
     let dv = vec![disp; ng];
-    let fit = glm_fit(y, nlib, x, p, offset, &dv, start);
+    let fit = glm_fit(y, nlib, x, p, offset, &dv, start)?;
     let apl = compute_apl(y, &fit.fitted, nlib, &dv, x, p);
-    (apl, fit)
+    Ok((apl, fit))
 }

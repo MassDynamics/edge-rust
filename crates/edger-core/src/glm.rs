@@ -12,6 +12,7 @@
 
 use crate::lapack::{dgeqr2, dorm2r_lt, dpotrf_upper, dpotrs_upper, dtrtrs_upper, lu_solve};
 use rnum::glibm::{exp, ln};
+use rnum::{LimmaError, Result};
 
 /// `compute_unit_nb_deviance`. The C's `2/3*resid` is integer division, i.e. zero.
 pub fn unit_nb_deviance(y: f64, mu: f64, phi: f64) -> f64 {
@@ -132,10 +133,10 @@ pub fn glm_fit(
     offset: &[f64],
     disp: &[f64],
     start: Option<&[f64]>,
-) -> GlmFit {
+) -> Result<GlmFit> {
     let (group, ng) = design_as_factor(x, nlib, p);
     if ng == p {
-        oneway(y, nlib, x, p, offset, disp, start, &group)
+        Ok(oneway(y, nlib, x, p, offset, disp, start, &group))
     } else {
         levenberg(y, nlib, x, p, offset, disp, start, 250, 1e-6)
     }
@@ -152,14 +153,14 @@ pub fn glm_fit_shrunk(
     offset: &[f64],
     disp: &[f64],
     prior_count: f64,
-) -> (GlmFit, Vec<f64>) {
-    let mut fit = glm_fit(y, nlib, x, p, offset, disp, None);
+) -> Result<(GlmFit, Vec<f64>)> {
+    let mut fit = glm_fit(y, nlib, x, p, offset, disp, None)?;
     let (yy, oo) = add_prior_count(y, nlib, offset, prior_count);
-    let pfc = glm_fit(&yy, nlib, x, p, &oo, disp, None);
+    let pfc = glm_fit(&yy, nlib, x, p, &oo, disp, None)?;
     let ln2 = std::f64::consts::LN_2;
     let shrunk = pfc.coefficients.iter().map(|b| b / ln2 * ln2).collect();
     let unshrunk = std::mem::replace(&mut fit.coefficients, shrunk);
-    (fit, unshrunk)
+    Ok((fit, unshrunk))
 }
 
 /// `addPriorCount(y, offset, prior.count)` with a shared offset row and a scalar prior count.
@@ -305,7 +306,7 @@ fn levenberg(
     start: Option<&[f64]>,
     maxit: usize,
     tol: f64,
-) -> GlmFit {
+) -> Result<GlmFit> {
     let ngenes = disp.len();
     // get_leven_start: QR of the design once, then per gene the least-squares fit of a constant
     // log mean ratio, Q' and the triangular solve done per gene as in the C.
@@ -347,16 +348,16 @@ fn levenberg(
         let mut mu = vec![0.0; nlib];
         let dev = fit_leven_vec(
             row, offset, d, x, p, maxit, tol, &mut beta, &mut mu, &mut ws,
-        );
+        )?;
         coefficients[gene * p..(gene + 1) * p].copy_from_slice(&beta);
         fitted[gene * nlib..(gene + 1) * nlib].copy_from_slice(&mu);
         deviance[gene] = dev;
     }
-    GlmFit {
+    Ok(GlmFit {
         coefficients,
         fitted,
         deviance,
-    }
+    })
 }
 
 struct LevenWork {
@@ -416,7 +417,9 @@ pub(crate) fn compute_xtwx(n: usize, p: usize, x: &[f64], w: &[f64], out: &mut [
 }
 
 /// `fit_leven_vec` for one gene; returns the deviance. All-zero rows get `NA` coefficients,
-/// zero means and zero deviance, as in the C.
+/// zero means and zero deviance, as in the C. The C retries the Cholesky factorisation with a
+/// growing damping until it succeeds, which never happens once `X'WX` or the damping is not
+/// finite; here that is an error instead of an endless loop.
 #[allow(clippy::too_many_arguments)]
 fn fit_leven_vec(
     y: &[f64],
@@ -429,13 +432,13 @@ fn fit_leven_vec(
     obt: &mut [f64],
     omu: &mut [f64],
     ws: &mut LevenWork,
-) -> f64 {
+) -> Result<f64> {
     let n = y.len();
     let ymax = y.iter().fold(0.0f64, |m, &v| if v > m { v } else { m });
     if ymax < 1e-10 {
         obt.iter_mut().for_each(|b| *b = f64::NAN);
         omu.iter_mut().for_each(|m| *m = 0.0);
-        return 0.0;
+        return Ok(0.0);
     }
     autofill(obt, offset, x, omu);
     let mut dev = 0.0;
@@ -478,6 +481,11 @@ fn fit_leven_vec(
         loop {
             lev += 1;
             loop {
+                if !lambda.is_finite() || ws.xtwx.iter().any(|v| !v.is_finite()) {
+                    return Err(LimmaError::Invalid(
+                        "the NB GLM fit diverged: X'WX or its damping is not finite (non-finite counts, offsets or design)".into(),
+                    ));
+                }
                 for c1 in 0..p {
                     for c2 in 0..=c1 {
                         ws.xtwc[c1 * p + c2] = ws.xtwx[c1 * p + c2];
@@ -531,7 +539,7 @@ fn fit_leven_vec(
             lambda /= 10.0;
         }
     }
-    dev
+    Ok(dev)
 }
 
 #[cfg(test)]
@@ -550,13 +558,31 @@ mod tests {
             .map(|l: &f64| ln(*l))
             .collect();
         let disp = [0.1, 0.2];
-        let a = glm_fit(&y, 6, &x, 2, &off, &disp, None);
-        let b = levenberg(&y, 6, &x, 2, &off, &disp, None, 250, 1e-14);
+        let a = glm_fit(&y, 6, &x, 2, &off, &disp, None).unwrap();
+        let b = levenberg(&y, 6, &x, 2, &off, &disp, None, 250, 1e-14).unwrap();
         for i in 0..2 {
             assert!((a.deviance[i] - b.deviance[i]).abs() < 1e-8 * (1.0 + a.deviance[i]));
         }
         for i in 0..4 {
             assert!((a.coefficients[i] - b.coefficients[i]).abs() < 1e-6);
         }
+    }
+
+    // SE-1: a +-1e308 covariate makes X'WX non-finite; the Cholesky retry looped forever.
+    #[test]
+    fn levenberg_errors_on_a_non_finite_cross_product() {
+        let y = [10.0, 12.0, 9.0, 30.0, 28.0, 35.0];
+        let x = [
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1e308, -1e308, 1.0, 2.0, 3.0, 1e308,
+        ];
+        let off = [ln(1e6); 6];
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(glm_fit(&y, 6, &x, 2, &off, &[0.1], None).is_err());
+        });
+        let is_err = rx
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .expect("levenberg did not return within 20 s");
+        assert!(is_err);
     }
 }

@@ -1,5 +1,6 @@
 // Env-gated bit checks of the glibc ports against sample dumps from the docker image
-// (md-flexi-r45-local). Each test is a no-op unless its env var points at the dump.
+// (md-flexi-r45-local). Ignored by default, so the test output says they did not run; run them
+// with `cargo test --test glibm_c_check -- --ignored` and the env var pointing at the dump.
 fn rd(p: &str) -> Vec<f64> {
     std::fs::read(p)
         .unwrap()
@@ -8,9 +9,10 @@ fn rd(p: &str) -> Vec<f64> {
         .collect()
 }
 #[test]
+#[ignore = "needs GLIBM_SAMPLES (a dump from the docker image)"]
 fn glibm_vs_r() {
     let Ok(dir) = std::env::var("GLIBM_SAMPLES") else {
-        return;
+        panic!("set GLIBM_SAMPLES to the sample dump");
     };
     let e = rd(&format!("{dir}/exp.bin"));
     let m = e.len() / 2;
@@ -53,9 +55,10 @@ fn glibm_vs_r() {
 }
 
 #[test]
+#[ignore = "needs GLIBM_SAMPLES (a dump from the docker image)"]
 fn ldouble_vs_r() {
     let Ok(dir) = std::env::var("GLIBM_SAMPLES") else {
-        return;
+        panic!("set GLIBM_SAMPLES to the sample dump");
     };
     let Ok(b) = std::fs::read(format!("{dir}/sums.bin")) else {
         return;
@@ -86,9 +89,10 @@ fn ldouble_vs_r() {
 }
 
 #[test]
+#[ignore = "needs LGAMMA_SAMPLES (a dump from the docker image)"]
 fn lgamma_vs_c() {
     let Ok(dir) = std::env::var("LGAMMA_SAMPLES") else {
-        return;
+        panic!("set LGAMMA_SAMPLES to the sample dump");
     };
     let x = rd(&format!("{dir}/in.bin"));
     let y = rd(&format!("{dir}/out.bin"));
@@ -115,9 +119,10 @@ fn lgamma_vs_c() {
 }
 
 #[test]
+#[ignore = "needs POW_SAMPLES (a dump from the docker image)"]
 fn pow_vs_c() {
     let Ok(f) = std::env::var("POW_SAMPLES") else {
-        return;
+        panic!("set POW_SAMPLES to the sample dump");
     };
     let v = rd(&f);
     let n = v.len() / 2;
@@ -132,9 +137,10 @@ fn pow_vs_c() {
 }
 
 #[test]
+#[ignore = "needs LOG2_SAMPLES (a dump from the docker image)"]
 fn log2_vs_c() {
     let Ok(f) = std::env::var("LOG2_SAMPLES") else {
-        return;
+        panic!("set LOG2_SAMPLES to the sample dump");
     };
     let v = rd(&f);
     let n = v.len() / 2;

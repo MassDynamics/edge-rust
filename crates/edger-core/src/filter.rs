@@ -5,6 +5,7 @@
 
 use rnum::linalg::median;
 use rnum::linpack::qr_decompose;
+use rnum::{LimmaError, Result};
 
 /// What `filterByExpr` computed, per gene and overall.
 #[derive(Debug, Clone)]
@@ -18,11 +19,17 @@ pub struct FilterResult {
 }
 
 /// `hat(x, intercept = TRUE)`: leverages of `cbind(1, x)` from its LINPACK QR (`tol = 1e-7`).
-/// `x` is column-major `n x p`.
-pub fn hat(x: &[f64], n: usize, p: usize) -> Vec<f64> {
+/// `x` is column-major `n x p`. Errors where R's `qr.qy` (a `.Fortran` call) refuses a
+/// non-finite QR, as for a finite design whose decomposition overflows.
+pub fn hat(x: &[f64], n: usize, p: usize) -> Result<Vec<f64>> {
     let mut xi = vec![1.0; n];
     xi.extend_from_slice(x);
     let qr = qr_decompose(&xi, n, p + 1, 1e-7);
+    if qr.qr.iter().chain(&qr.qraux).any(|v| !v.is_finite()) {
+        return Err(LimmaError::Invalid(
+            "NA/NaN/Inf in foreign function call (arg 1)".into(),
+        ));
+    }
     let mut h = vec![0.0; n];
     for k in 0..qr.rank {
         let mut e = vec![0.0; n];
@@ -32,12 +39,18 @@ pub fn hat(x: &[f64], n: usize, p: usize) -> Vec<f64> {
             h[i] += q[i] * q[i];
         }
     }
-    h
+    Ok(h)
 }
 
 /// `filterByExpr(DGEList(counts), design)`. `counts` is gene-major (`nlib` per gene), the
-/// design column-major `nlib x p`.
-pub fn filter_by_expr(counts: &[f64], nlib: usize, design: &[f64], p: usize) -> FilterResult {
+/// design column-major `nlib x p`. Errors as R does on a non-finite `hat()` QR and, after it, in
+/// `cpm()` on a library size that is not positive.
+pub fn filter_by_expr(
+    counts: &[f64],
+    nlib: usize,
+    design: &[f64],
+    p: usize,
+) -> Result<FilterResult> {
     let ngenes = counts.len().checked_div(nlib).unwrap_or(0);
     let mut lib_size = vec![0.0; nlib];
     for row in counts.chunks(nlib) {
@@ -45,7 +58,12 @@ pub fn filter_by_expr(counts: &[f64], nlib: usize, design: &[f64], p: usize) -> 
             *l += v;
         }
     }
-    let h = hat(design, nlib, p);
+    let h = hat(design, nlib, p)?;
+    if lib_size.iter().any(|&l| l <= 0.0) {
+        return Err(LimmaError::Invalid(
+            "library sizes should be greater than zero".into(),
+        ));
+    }
     let hmax = h.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let mut mss = 1.0 / hmax;
     if mss > 10.0 {
@@ -67,12 +85,12 @@ pub fn filter_by_expr(counts: &[f64], nlib: usize, design: &[f64], p: usize) -> 
         n_above_cutoff.push(n);
         total.push(t);
     }
-    FilterResult {
+    Ok(FilterResult {
         keep,
         n_above_cutoff,
         total,
         min_sample_size: mss,
         cpm_cutoff,
         lib_size,
-    }
+    })
 }

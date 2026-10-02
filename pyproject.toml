@@ -32,3 +32,13 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.uv]
+# Rebuild the extension on `uv run` when the Rust sources change (review r1, R4).
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "Cargo.lock" },
+  { file = "crates/**/Cargo.toml" },
+  { file = "crates/**/*.rs" },
+]

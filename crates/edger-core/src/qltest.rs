@@ -35,7 +35,7 @@ pub fn glm_ql_ftest(
     ql: &QlFit,
     contrast: &[f64],
     ncon: usize,
-) -> QlTest {
+) -> rnum::Result<QlTest> {
     let ng = y.len() / nlib;
     // logFC <- (fit$coefficients %*% contrast) / log(2)
     let mut logfc = vec![0.0; ng * ncon];
@@ -66,7 +66,7 @@ pub fn glm_ql_ftest(
         }
     }
     let disp = vec![ql.dispersion / ql.ave_ql_dispersion; ng];
-    let null = glm_fit(y, nlib, &design0, p0, offset, &disp, None);
+    let null = glm_fit(y, nlib, &design0, p0, offset, &disp, None)?;
     let df_res_sum = (ng * (nlib - p)) as f64;
     let mut lr = vec![0.0; ng];
     let mut f = vec![0.0; ng];
@@ -80,7 +80,7 @@ pub fn glm_ql_ftest(
         pvalue[g] = pf(f[g], r as f64, df_total[g], false, false);
     }
     let fdr = p_adjust_bh(&pvalue);
-    QlTest {
+    Ok(QlTest {
         deviance_null: null.deviance,
         lr,
         df_test: r,
@@ -90,5 +90,5 @@ pub fn glm_ql_ftest(
         fdr,
         ncon,
         logfc,
-    }
+    })
 }

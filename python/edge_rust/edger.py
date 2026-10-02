@@ -8,6 +8,8 @@ columns plus ``MaxLog2FCPair`` / ``MaxLog2FC``, every column as a string with NA
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
@@ -15,6 +17,8 @@ from edge_rust import _core
 
 PAIR_STATS = ["Log2FC", "stat", "SE", "CILeft", "CIRight", "F", "PValue", "AdjPValue"]
 ANOVA_COLUMNS = ["GroupId", "AveExpr", "PValue", "AdjPValue", "F", "MaxLog2FCPair", "MaxLog2FC"]
+
+log = logging.getLogger(__name__)
 
 
 def _control_specs(control_cols) -> list[tuple[str, str]]:
@@ -59,16 +63,36 @@ def run(
     """
     cc = params.get("condition_col", "condition")
     si = sample_info.set_index("replicate") if "replicate" in sample_info.columns else sample_info
-    si.index = si.index.astype(str)
+    si = si.set_axis(si.index.astype(str))  # a copy: the caller's frame is left alone
+    if counts.index.duplicated().any():
+        raise ValueError("counts has duplicate gene ids")
+    if counts.columns.duplicated().any():
+        raise ValueError("counts has duplicate sample ids")
+    # dcast orders the sample columns by id (C collation); the fit depends on that order.
+    counts = counts[sorted(counts.columns, key=lambda s: str(s).encode())]
     sample_ids = [str(s) for s in counts.columns]
     missing = set(sample_ids) - set(si.index)
     if missing:
         raise ValueError(f"samples missing from sample_info: {sorted(missing)}")
     # sampleInfo[colnames(countMatrix), ]: the count matrix fixes the sample order.
     si = si.loc[sample_ids]
-    controls = [
-        (c, t, [str(v) for v in si[c]]) for c, t in _control_specs(params.get("control_cols"))
-    ]
+    if si[cc].isna().any():
+        raise ValueError(
+            f"Condition column '{cc}' contains missing values. "
+            "Fix the sample metadata before running DE."
+        )
+    controls = []
+    for c, t in _control_specs(params.get("control_cols")):
+        # importFlexiData makes "" NA, and model.matrix drops the NA rows.
+        if si[c].isna().any() or (si[c].astype(str) == "").any():
+            raise ValueError("nrow(design) disagrees with ncol(y)")
+        controls.append((c, t, [str(v) for v in si[c]]))
+    mat = counts.to_numpy(dtype=np.float64, na_value=np.nan, copy=True)
+    na = np.isnan(mat)
+    if na.any():
+        # NA cells are unobserved, so 0 (edgeRStatsFun.R:63-73); Inf still stops in the engine.
+        log.info("edgeR: coercing %d NA cell(s) in the count matrix to 0", int(na.sum()))
+        mat[na] = 0.0
     enc_l = comparisons["encoded_left"] if "encoded_left" in comparisons else comparisons["left"]
     enc_r = comparisons["encoded_right"] if "encoded_right" in comparisons else comparisons["right"]
     cmps = [
@@ -77,7 +101,7 @@ def run(
     ]
     gene_ids = [str(g) for g in counts.index]
     res = _core.edger_pipeline(
-        np.ascontiguousarray(counts.to_numpy(dtype=np.float64)),
+        np.ascontiguousarray(mat),
         gene_ids,
         sample_ids,
         cc,
@@ -115,7 +139,7 @@ def run(
             table[c] = [_r_character(v) for v in table[c]]
 
     # type_convert(out, "integer", "GroupId"), when every id is an integer.
-    if all(g.lstrip("-").isdigit() for g in table["GroupId"]):
+    if all(g.isascii() and g.lstrip("-").isdigit() for g in table["GroupId"]):
         table["GroupId"] = table["GroupId"].astype(np.int64)
     if params.get("mode") == "anova":
         table["GroupId"] = table["GroupId"].astype(str)
@@ -138,7 +162,7 @@ def _diag(res: dict, gene_ids: list[str], sample_ids: list[str]) -> dict:
     d = res["diag"]
     cols = list(res["design_cols"])
     ids = [gene_ids[i] for i in d["kept_idx"]]
-    if all(g.lstrip("-").isdigit() for g in ids):
+    if all(g.isascii() and g.lstrip("-").isdigit() for g in ids):
         ids = [int(g) for g in ids]
     samples = pd.DataFrame(
         {"replicate": sample_ids, "lib_size": d["lib_size"], "norm_factor": d["norm_factor"]}

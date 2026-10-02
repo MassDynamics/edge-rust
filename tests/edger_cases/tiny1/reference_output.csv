@@ -1,0 +1,2 @@
+GroupId,AveExpr,F,PValue,AdjPValue,Log2FC B - A,stat B - A,SE B - A,CILeft B - A,CIRight B - A,F B - A,PValue B - A,AdjPValue B - A,Log2FC C - A,stat C - A,SE C - A,CILeft C - A,CIRight C - A,F C - A,PValue C - A,AdjPValue C - A,Log2FC C - B,stat C - B,SE C - B,CILeft C - B,CIRight C - B,F C - B,PValue C - B,AdjPValue C - B
+1,19.845554653615821,0,1,1,4.0042831297686471e-17,"","","","",0,1,1,1.6642801758100939e-16,"","","","",0,1,1,1.2638518628332294e-16,"","","","",0,1,1

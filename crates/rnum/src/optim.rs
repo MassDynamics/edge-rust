@@ -23,6 +23,15 @@ pub const UNIROOT_DEFAULT_MAXITER: i32 = 1000;
 /// section search and successive parabolic interpolation. This is the whole of R's
 /// `optimize()` apart from the argument checks.
 pub fn brent_fmin<F: FnMut(f64) -> f64>(ax: f64, bx: f64, mut f: F, tol: f64) -> f64 {
+    // optimize.c fcn1: a non-finite objective value (NA, NaN, +-Inf) is replaced by DBL_MAX.
+    let mut f = |x: f64| {
+        let v = f(x);
+        if v.is_finite() {
+            v
+        } else {
+            f64::MAX
+        }
+    };
     // c is the squared inverse of the golden ratio.
     let c = (3.0 - 5.0f64.sqrt()) * 0.5;
 

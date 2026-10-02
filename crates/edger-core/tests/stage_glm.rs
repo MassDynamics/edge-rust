@@ -30,7 +30,8 @@ fn glmfit_at_dispersion_005_on_every_edger_run() {
             &fx.offset,
             &vec![0.05; ng],
             None,
-        );
+        )
+        .unwrap();
         let want = read_csv(&run, "edger_disp_glmfit005").f64s("deviance");
         let m = max_rel_floor(&run, &fit.deviance, &want, 1.0);
         let mr = max_rel(&run, &fit.deviance, &want);

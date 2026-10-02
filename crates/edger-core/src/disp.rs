@@ -149,7 +149,7 @@ pub fn estimate_disp(
     let grid: Vec<f64> = pts.iter().map(|t| 0.1 * pow(2.0, *t)).collect();
     let mut l0 = vec![0.0; nsel * NGRID];
 
-    let fit005 = glm_fit(&sely, nlib, x, p, offset, &vec![0.05; nsel], None);
+    let fit005 = glm_fit(&sely, nlib, x, p, offset, &vec![0.05; nsel], None)?;
     let zerofit: Vec<bool> = sely
         .iter()
         .zip(&fit005.fitted)
@@ -187,7 +187,7 @@ pub fn estimate_disp(
         let mut last: Option<Vec<f64>> = None;
         for (i, &dv) in grid.iter().enumerate() {
             let (apl, fit) =
-                adjusted_profile_lik(dv, &cury, nl, &redesign, rp, &curo, last.as_deref());
+                adjusted_profile_lik(dv, &cury, nl, &redesign, rp, &curo, last.as_deref())?;
             for (k, &g) in subg.iter().enumerate() {
                 l0[g * NGRID + i] = apl[k];
             }
@@ -233,7 +233,7 @@ pub fn estimate_disp(
         }
     }
 
-    let fit2 = glm_fit(&sely, nlib, x, p, offset, &trend, None);
+    let fit2 = glm_fit(&sely, nlib, x, p, offset, &trend, None)?;
     let zero2: Vec<bool> = sely
         .iter()
         .zip(&fit2.fitted)
