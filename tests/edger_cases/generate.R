@@ -22,17 +22,18 @@ for (case in list.dirs(".", recursive = FALSE)) {
     ctlCols <- ctl$Column
     if (ctl$Type == "numerical") long[[ctlCols]] <- as.numeric(long[[ctlCols]])
   }
+  norm <- if (is.null(params$edger_norm_method)) "TMM" else params$edger_norm_method
   levs <- sort(unique(si$condition))
   dict <- data.table(original = levs, safe = levs)
   res <- tryCatch({
     out <- runEdgeRPairwiseStats(long, "condition", ctlCols, data.frame(left = cmp$left, right = cmp$right),
-                                 "GroupId", " - ", dict)
+                                 "GroupId", " - ", dict, normMethod = norm)
     fwrite(out[, lapply(.SD, fmt)], file.path(case, "reference_output.csv"))
     # The same fit again for the per-gene df (deterministic).
     cm <- .buildCountMatrixFromLongDT(long, "GroupId")
     sinfo <- .buildSampleInfoDF(long, "condition", ctlCols)[colnames(cm), , drop = FALSE]
     sinfo$condition <- factor(sinfo$condition)
-    fit <- .fitEdgeRModel(cm, sinfo, "condition", ctlCols)$fit
+    fit <- .fitEdgeRModel(cm, sinfo, "condition", ctlCols, normMethod = norm)$fit
     fwrite(data.table(id = rownames(fit$counts), df_prior = fmt(rep_len(fit$df.prior, nrow(fit$counts))),
                       df_residual_adj = fmt(fit$df.residual.adj)), file.path(case, "r_diag.csv"))
     sprintf("%s: %d genes, df.prior %.4g, df_adj == 0: %d, 0 < df_adj < 0.01: %d", case, nrow(fit$counts),

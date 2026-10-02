@@ -5,7 +5,8 @@ Corpus-free: every input and reference lives in ``tests/edger_cases/<case>/``, g
 (edgeR 4.8.2). ``gap_zero`` and ``gap_tiny`` put df.prior inside (3, 50) with 3% of genes at
 df.residual.adj = 0 and 3.4% at 0 < df.residual.adj < 0.01 (review r1, stats e); the rest are the
 review's adversarial "matches edgeR" cases (empty group, singleton group, 1 residual df, 1 to 4
-genes, dispersion capped at 4).
+genes, dispersion capped at 4, zero groups with and without controls, sparse RLE and
+upperquartile input).
 """
 
 from __future__ import annotations
@@ -32,16 +33,27 @@ def load(case: str):
     return counts, si, cmp, params
 
 
-def close(name: str, got: np.ndarray, want: np.ndarray, floor: float = 0.0):
+def close(name: str, got: np.ndarray, want: np.ndarray, floor=0.0):
     na_g, na_w = np.isnan(got), np.isnan(want)
     assert (na_g == na_w).all(), f"{name}: NA pattern differs at {np.flatnonzero(na_g != na_w)[:5]}"
     a, b = got[~na_w], want[~na_w]
+    if np.ndim(floor):
+        floor = floor[~na_w]
     ok = np.abs(a - b) <= TOL * np.maximum(np.abs(b), floor)
     assert ok.all(), f"{name}: {a[~ok][:3]} vs {b[~ok][:3]}"
 
 
 def test_cases_exist():
     assert {"gap_zero", "gap_tiny", "singleton", "zerogroup", "df1", "dispcap"} <= set(CASES)
+
+
+def close_p(name: str, got: np.ndarray, want: np.ndarray):
+    na_g, na_w = np.isnan(got), np.isnan(want)
+    assert (na_g == na_w).all(), f"{name}: NA pattern differs at {np.flatnonzero(na_g != na_w)[:5]}"
+    a, b = got[~na_w], want[~na_w]
+    scale = np.maximum(1.0, np.abs(np.log(np.maximum(b, 1e-300))))
+    ok = np.abs(a - b) <= TOL * np.abs(b) * scale
+    assert ok.all(), f"{name}: {a[~ok][:3]} vs {b[~ok][:3]}"
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -54,12 +66,26 @@ def test_table_matches_production(case):
     for c in want.columns[1:]:
         stat, _, label = c.partition(" ")
         g, w = got[c].to_numpy(dtype=float), want[c].to_numpy(dtype=float)
-        if stat in ("stat", "SE", "CILeft", "CIRight"):
+        if stat in ("stat", "SE", "CILeft", "CIRight", "PValue", "AdjPValue"):
             # sqrt(F) carries half the relative error of F, and F below 1e-4 is checked at 1e-8
-            # absolute (gaps there are ~1e-13), so the derived columns are checked where F >= 1e-4.
-            keep = ~(np.abs(want[f"F {label}"].to_numpy(dtype=float)) < 1e-4)
+            # absolute (gaps there are ~1e-13, rounding noise around 0 on both sides, which a
+            # 1-df p-value near 1 turns into ~1e-7), so the derived columns are checked where
+            # F >= 1e-4.
+            keep = ~(
+                np.abs(want["F" + (f" {label}" if label else "")].to_numpy(dtype=float)) < 1e-4
+            )
             g, w = g[keep], w[keep]
-        close(f"{case} {c}", g, w, floor=1.0 if stat == "F" else 0.0)
+        if stat in ("PValue", "AdjPValue"):
+            # The image of the 1e-8 F gate, as the Rust e2e bands it: |d ln p / d ln F| is about
+            # |ln p| in the tail, so a p of 1e-45 moves ~100x the relative gap of its F.
+            close_p(f"{case} {c}", g, w)
+            continue
+        floor = 1.0 if stat == "F" else 0.0
+        if stat in ("CILeft", "CIRight"):
+            # Log2FC -/+ q SE cancels near 0; the error lives in the half-width q SE.
+            hw = (want[f"CIRight {label}"] - want[f"CILeft {label}"]).to_numpy(dtype=float) / 2
+            floor = hw[keep]
+        close(f"{case} {c}", g, w, floor=floor)
 
 
 @pytest.mark.parametrize("case", CASES)
