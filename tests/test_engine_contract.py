@@ -39,6 +39,16 @@ CASES = {
         "call(synth(), [('x', 'numerical', ['1e308', '-1e308', '1', '2', '1e308', '3'])])",
         "NA/NaN/Inf in foreign function call",
     ),
+    # R2-1: s2's only count is in a gene filterByExpr drops, so its library is 0 after it.
+    "sample_emptied_by_filter": (
+        "c = synth(); c[:, 2] = 0; c = np.vstack([c, [0, 0, 1, 0, 0, 0]]); call(c)",
+        "missing value where TRUE/FALSE needed",
+    ),
+    # R2-6: +-1e200 passes hat() and reaches the Levenberg guard (R errors in locfit).
+    "huge_numeric_control": (
+        "call(synth(), [('x', 'numerical', ['1e200', '1', '2', '3', '4', '5'])])",
+        "the NB GLM fit diverged",
+    ),
     "single_level_control": (
         "call(synth(), [('batch', 'categorical', ['b'] * 6)])",
         "contrasts can be applied only to factors with 2 or more levels",
@@ -57,7 +67,7 @@ def test_refusal_is_a_value_error_in_bounded_time(case):
         f"""
         import sys
         sys.path.insert(0, {str(__import__("pathlib").Path(__file__).parent)!r})
-        from test_engine_contract import call, synth
+        from test_engine_contract import call, np, synth
         try:
             {body}
         except ValueError as e:

@@ -66,18 +66,39 @@ def test_table_matches_production(case):
     for c in want.columns[1:]:
         stat, _, label = c.partition(" ")
         g, w = got[c].to_numpy(dtype=float), want[c].to_numpy(dtype=float)
+        fcol = "F" + (f" {label}" if label else "")
+        f_g, f_w = got[fcol].to_numpy(dtype=float), want[fcol].to_numpy(dtype=float)
+        if stat in ("stat", "SE", "CILeft", "CIRight"):
+            # Production's NA rule, usable = is.finite(F) & F > 0 (edgeRStatsFun.R:252), holds
+            # on the port's own F, and the NA pattern matches R's exactly except on rows where F
+            # is rounding noise around 0 on both sides with opposite signs, so the same rule
+            # lands on different sides of 0 (review r2, R2-4).
+            use_g, use_w = np.isfinite(f_g) & (f_g > 0), np.isfinite(f_w) & (f_w > 0)
+            assert (np.isnan(g) | use_g).all(), f"{case} {c}: a value where F is not usable"
+            if stat == "stat":
+                assert (np.isnan(g) == ~use_g).all(), f"{case} {c}: NA where F is usable"
+            flip = use_g != use_w
+            noise = (np.abs(f_g) < 1e-10) & (np.abs(f_w) < 1e-10)
+            assert noise[flip].all(), f"{case} {c}: F usable on one side only at {f_w[flip]}"
+            same = np.isnan(g[~flip]) == np.isnan(w[~flip])
+            assert same.all(), f"{case} {c}: NA pattern differs at {np.flatnonzero(~same)[:5]}"
         if stat in ("stat", "SE", "CILeft", "CIRight", "PValue", "AdjPValue"):
             # sqrt(F) carries half the relative error of F, and F below 1e-4 is checked at 1e-8
             # absolute (gaps there are ~1e-13, rounding noise around 0 on both sides, which a
-            # 1-df p-value near 1 turns into ~1e-7), so the derived columns are checked where
-            # F >= 1e-4.
-            keep = ~(
-                np.abs(want["F" + (f" {label}" if label else "")].to_numpy(dtype=float)) < 1e-4
-            )
+            # 1-df p-value near 1 turns into ~1e-7), so the derived values are compared where
+            # F >= 1e-4; p is still checked below it, at 1e-6 absolute.
+            keep = ~(np.abs(f_w) < 1e-4)
+            if stat in ("PValue", "AdjPValue"):
+                lo_g, lo_w = g[~keep], w[~keep]
+                assert (np.isnan(lo_g) == np.isnan(lo_w)).all(), f"{case} {c}: NA pattern, F < 1e-4"
+                gap = np.abs(lo_g - lo_w)[~np.isnan(lo_w)]
+                assert (gap <= 1e-6).all(), f"{case} {c}: p gap {gap.max():.3g} where F < 1e-4"
             g, w = g[keep], w[keep]
         if stat in ("PValue", "AdjPValue"):
-            # The image of the 1e-8 F gate, as the Rust e2e bands it: |d ln p / d ln F| is about
-            # |ln p| in the tail, so a p of 1e-45 moves ~100x the relative gap of its F.
+            # The tail gap comes from df.prior, not F: df.prior differs from R by up to 1.6e-9
+            # relative (gated directly at 1e-8 in test_df_matches_production) and
+            # |d ln p / d ln df2| is 18-35 at p < 1e-30. Gated at 1e-8 * max(1, |ln p|), 11x
+            # above the worst gap (review r2, R2-3).
             close_p(f"{case} {c}", g, w)
             continue
         floor = 1.0 if stat == "F" else 0.0

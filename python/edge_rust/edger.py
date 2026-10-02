@@ -90,7 +90,10 @@ def run(
     mat = counts.to_numpy(dtype=np.float64, na_value=np.nan, copy=True)
     na = np.isnan(mat)
     if na.any():
-        # NA cells are unobserved, so 0 (edgeRStatsFun.R:63-73); Inf still stops in the engine.
+        # Production fills plain NA with 0 and stops on NaN and Inf (edgeRStatsFun.R:56-72).
+        # pandas cannot tell NaN from NA, and a cell missing after a pivot arrives as NaN, so
+        # every NaN is filled with 0 here: parity holds for NA only, and a literal NaN count
+        # runs where production stops. Inf still stops in the engine.
         log.info("edgeR: coercing %d NA cell(s) in the count matrix to 0", int(na.sum()))
         mat[na] = 0.0
     enc_l = comparisons["encoded_left"] if "encoded_left" in comparisons else comparisons["left"]

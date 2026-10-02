@@ -84,6 +84,41 @@ fn zero_library_sample_is_rejected_with_the_r_message() {
     );
 }
 
+// R2-1: s0's only count is in a gene filterByExpr drops (total 1 < 15), so its library is 0
+// after filtering. Production stops in calcNormFactors under TMM and on the offsets otherwise.
+#[test]
+fn sample_emptied_by_the_filter_is_rejected_with_the_r_message() {
+    let mut c = synth_counts(50, 6);
+    for g in 0..50 {
+        c[g * 6] = 0.0;
+    }
+    c.extend([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    for (method, msg) in [
+        ("TMM", "missing value where TRUE/FALSE needed"),
+        ("RLE", "offsets must be finite values"),
+        ("upperquartile", "offsets must be finite values"),
+        ("none", "offsets must be finite values"),
+    ] {
+        let mut inp = input(c.clone(), vec![], ("B", "A"));
+        inp.norm_method = method.into();
+        expect_err(inp, msg);
+    }
+}
+
+// R2-6: a +-1e200 control passes hat() but overflows X'WX, so it is the input band that
+// reaches the Levenberg guard. R also errors there, in locfit ("NA/NaN/Inf in foreign function
+// call (arg 2)"); the port's message is its own.
+#[test]
+fn huge_numeric_control_stops_at_the_levenberg_guard() {
+    for x in ["1e200", "-1e200"] {
+        let ctl = numeric_control([x, "1", "2", "3", "4", "5"]);
+        expect_err(
+            input(synth_counts(50, 6), vec![ctl], ("B", "A")),
+            "the NB GLM fit diverged",
+        );
+    }
+}
+
 // SE-1: R's qr.qy in filterByExpr's hat() refuses the non-finite QR of a +-1e308 control.
 #[test]
 fn extreme_numeric_control_is_rejected_with_the_r_message() {

@@ -53,5 +53,5 @@ fn glmfit_at_dispersion_005_on_every_edger_run() {
         assert!(m <= 1e-8, "{run}: deviance max rel {m:e}");
         n += 1;
     }
-    assert!(n >= 20, "only {n} runs");
+    assert_eq!(n, 25, "runs (the corpus has 25)");
 }

@@ -14,7 +14,9 @@ dependencies = [
   "pandas>=2.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
+# A group, not an extra: a bare `uv sync` installs it, so `uv run pytest` works on a fresh
+# checkout (review r2, R2-8).
 dev = [
   "pytest>=8",
   "ruff>=0.9",

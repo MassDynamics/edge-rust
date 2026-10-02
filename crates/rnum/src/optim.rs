@@ -23,11 +23,13 @@ pub const UNIROOT_DEFAULT_MAXITER: i32 = 1000;
 /// section search and successive parabolic interpolation. This is the whole of R's
 /// `optimize()` apart from the argument checks.
 pub fn brent_fmin<F: FnMut(f64) -> f64>(ax: f64, bx: f64, mut f: F, tol: f64) -> f64 {
-    // optimize.c fcn1: a non-finite objective value (NA, NaN, +-Inf) is replaced by DBL_MAX.
+    // optimize.c fcn1: NA, NaN and +Inf become DBL_MAX, -Inf becomes -DBL_MAX (sign kept).
     let mut f = |x: f64| {
         let v = f(x);
         if v.is_finite() {
             v
+        } else if v == f64::NEG_INFINITY {
+            -f64::MAX
         } else {
             f64::MAX
         }

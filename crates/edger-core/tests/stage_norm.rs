@@ -38,5 +38,5 @@ fn norm_factors_on_every_edger_run() {
         }
         n += 1;
     }
-    assert!(n >= 23, "only {n} runs dump edger_norm");
+    assert_eq!(n, 26, "runs dump edger_norm (the corpus has 26)");
 }

@@ -305,6 +305,19 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
         }
     }
     let nf = calc_norm_factors(&y, nlib, &lib, &input.norm_method)?;
+    // A sample whose counts all sit in filtered genes: TMM stops on the NaN f75 median
+    // (calcNormFactors.R:63), the other methods on the non-finite offset in estimateDisp.
+    if let Some(j) = lib.iter().position(|&l| l <= 0.0) {
+        let r = if input.norm_method == "TMM" {
+            "missing value where TRUE/FALSE needed"
+        } else {
+            "offsets must be finite values"
+        };
+        return Err(err(format!(
+            "{r} (sample '{}' has no counts in the genes filterByExpr kept)",
+            input.sample_ids[j]
+        )));
+    }
     let lib_eff: Vec<f64> = lib
         .iter()
         .zip(&nf.norm_factors)

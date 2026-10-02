@@ -118,8 +118,11 @@ fn edger_pipeline<'py>(
         norm_method: norm_method.to_string(),
         entity_type: entity_type.to_string(),
     };
-    let (out, diag) = guarded(py, || run_edger_diag(&input))?;
-    let (max_pair, max_log2fc) = max_abs_log2fc(&out.pairs);
+    let (out, diag, (max_pair, max_log2fc)) = guarded(py, || {
+        let (out, diag) = run_edger_diag(&input)?;
+        let max = max_abs_log2fc(&out.pairs);
+        Ok((out, diag, max))
+    })?;
 
     let d = PyDict::new(py);
     d.set_item("gene_ids", out.gene_ids)?;

@@ -35,5 +35,5 @@ fn filter_by_expr_on_every_edger_run() {
         );
         n += 1;
     }
-    assert!(n >= 24, "only {n} runs dump edger_filter");
+    assert_eq!(n, 27, "runs dump edger_filter (the corpus has 27)");
 }

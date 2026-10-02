@@ -117,5 +117,5 @@ fn estimate_disp_on_every_edger_run() {
         eprintln!("{run}: {}", worst.join(", "));
         n += 1;
     }
-    assert!(n >= 20, "only {n} runs");
+    assert_eq!(n, 25, "runs (the corpus has 25)");
 }
