@@ -18,7 +18,7 @@ fn matches_r_as_character() {
         }
         n += 1;
     }
-    assert!(n >= 5000, "only {n} values");
+    assert!(n >= 65000, "only {n} values");
     assert!(
         bad.is_empty(),
         "{} of {n} differ: {:?}",

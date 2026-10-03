@@ -11,8 +11,6 @@ import struct
 
 import numpy as np
 
-rng = np.random.default_rng(20261003)
-
 # Hand cases: the fixed/scientific width rule, 15-digit rounding, extremes and signs.
 v = [1e5, 110000.0, 1e-4, 1e-5, 1e15, 1e16, 1234567890123456.0, 123456789012345.0, 0.1 + 0.2, 0.3,
      1.0, 1.000000000000001, 99999.99999999999, 999999999999999.9, 9999999999999998.0, 0.0001,
@@ -31,14 +29,29 @@ v += [2.0**50 + 0.5, 2.0**51 + 0.5, 2.0**50 + 2.5, 1125899906842624.5, 0.125, 0.
       2.0**-40, 3 * 2.0**-30, 1e15 + 0.5, 4503599627370495.5, 9007199254740993.0, 2.0**60, 2.0**70,
       2.0**-1074 * 3]  # fmt: skip
 
-# 5,000 random values shaped like what the engines format.
-v += list(10 ** rng.uniform(-300, 0, 1500))  # p-values
-v += list(rng.lognormal(3, 4, 1500))  # AveExpr-like
-v += list(rng.normal(0, 3, 750))  # log2FC
-v += list(rng.integers(0, 10**7, 400).astype(float) * 10.0 ** rng.integers(-6, 12, 400))
-v += [round(float(a), int(b)) for a, b in zip(rng.uniform(-1e6, 1e6, 400), rng.integers(0, 6, 400))]
-v += [float(a) for a in rng.integers(1, 10**6, 250)]
-v += list(rng.integers(1, 2**52, 200) * 2.0 ** rng.integers(-1074, 970, 200))
+
+# Random values shaped like what the engines format, in two seeded blocks that R has already
+# formatted: the review r2 pool (65,000 values) and fix round 0's smaller block (5,000), so no
+# R-checked row is dropped (review overnight r1, SE-m1).
+def random_values(n_p, n_ave, n_lfc, n_scaled, n_rounded, n_int, n_bin):
+    rng = np.random.default_rng(20261003)
+    r = list(10 ** rng.uniform(-300, 0, n_p))  # p-values
+    r += list(rng.lognormal(3, 4, n_ave))  # AveExpr-like
+    r += list(rng.normal(0, 3, n_lfc))  # log2FC
+    r += list(
+        rng.integers(0, 10**7, n_scaled).astype(float) * 10.0 ** rng.integers(-6, 12, n_scaled)
+    )
+    r += [
+        round(float(a), int(b))
+        for a, b in zip(rng.uniform(-1e6, 1e6, n_rounded), rng.integers(0, 6, n_rounded))
+    ]
+    r += [float(a) for a in rng.integers(1, 10**6, n_int)]
+    r += list(rng.integers(1, 2**52, n_bin) * 2.0 ** rng.integers(-1074, 970, n_bin))
+    return r
+
+
+v += random_values(20000, 20000, 10000, 5000, 5000, 3000, 2000)
+v += random_values(1500, 1500, 750, 400, 400, 250, 200)
 
 hexes = [struct.pack(">d", float(x)).hex() for x in v]
 
