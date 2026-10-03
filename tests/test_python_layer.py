@@ -193,3 +193,45 @@ def test_anova_string_columns_come_from_r_as_character(monkeypatch):
         vals = [v for v in t[col] if v != ""]
         assert vals, f"{col}: no values"
         assert all(v.startswith("R:") for v in vals), f"{col} bypasses r_as_character"
+
+
+def _nb_counts(ng: int = 3000, seed: int = 1) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    mu = rng.gamma(1.0, 200.0, size=ng)
+    fc = np.where(rng.random(ng) < 0.1, 4.0, 1.0)
+    m = np.column_stack([mu * (fc if j >= 3 else 1.0) for j in range(6)])
+    y = rng.negative_binomial(5, 5 / (5 + m)).astype(float)
+    return pd.DataFrame(y, index=[str(500 + g) for g in range(ng)], columns=SAMPLES)
+
+
+@pytest.mark.parametrize("mode", ["discovery", "anova"])
+def test_fit_does_not_depend_on_the_input_row_order(mode):
+    """Review deseq2 r4, SE4-M1: production fits on the dcast matrix, in GroupId order, whatever
+    the metadata order; the QL prior depends on row order at about 1e-7. Shuffled rows give the
+    sorted run's numbers exactly. The ids 500..3499 also tell numeric from bytewise order."""
+    c = _nb_counts()
+    want = edge_rust.run(c, sample_info(), CMP, {"mode": mode})
+    shuf = c.iloc[np.random.default_rng(7).permutation(len(c))]
+    got = edge_rust.run(shuf, sample_info(), CMP, {"mode": mode})
+    want = want.set_index(want["GroupId"].astype(str))
+    got = got.set_index(got["GroupId"].astype(str))
+    pd.testing.assert_frame_equal(got.loc[want.index], want, check_exact=True)
+
+
+def test_diag_genes_follow_the_input_order():
+    """Review deseq2 r4, SE4-M1: the fit runs in GroupId order and ``_diag`` restores the input
+    order of the kept genes, with each row's values unchanged."""
+    c = _nb_counts()
+    shuf = c.iloc[np.random.default_rng(7).permutation(len(c))]
+    _, want = edge_rust.run(c, sample_info(), CMP, {}, diagnostics=True)
+    _, got = edge_rust.run(shuf, sample_info(), CMP, {}, diagnostics=True)
+    kept = set(want["genes"]["id"])
+    order = [int(i) for i in shuf.index if int(i) in kept]
+    for k in ["genes", "disp"]:
+        g, w = got[k], want[k]
+        assert g["id"].tolist() == order
+        pd.testing.assert_frame_equal(
+            g.set_index("id"), w.set_index("id").loc[g["id"]], check_exact=True
+        )
+    assert got["fitted"].index.tolist() == order
+    pd.testing.assert_frame_equal(got["fitted"], want["fitted"].loc[order], check_exact=True)

@@ -42,6 +42,13 @@ def _is_int_id(g: str) -> bool:
     return g.isascii() and g.removeprefix("-").isdigit()
 
 
+def _group_id_order(ids: list[str]) -> list[int]:
+    """Positions of ``ids`` in GroupId order: numeric when every id is an integer, else bytewise."""
+    if all(_is_int_id(g) for g in ids):
+        return sorted(range(len(ids)), key=lambda i: int(ids[i]))
+    return sorted(range(len(ids)), key=lambda i: ids[i].encode())
+
+
 def _r_character(x) -> list[str]:
     """R's ``as.character`` of each double (``1e5`` is "1e+05"), NA as ""."""
     x = np.asarray(x, dtype=np.float64)
@@ -114,9 +121,14 @@ def run(
         (str(a), str(b), str(c), str(d))
         for a, b, c, d in zip(comparisons["left"], comparisons["right"], enc_l, enc_r)
     ]
-    gene_ids = [str(g) for g in counts.index]
+    # .buildCountMatrixFromLongDT (dcast) orders the rows by GroupId and production fits in that
+    # order whatever the metadata order; the QL prior depends on it at about 1e-7 (review deseq2
+    # r4, SE4-M1).
+    input_ids = [str(g) for g in counts.index]
+    fit_order = _group_id_order(input_ids)
+    gene_ids = [input_ids[i] for i in fit_order]
     res = _core.edger_pipeline(
-        np.ascontiguousarray(mat),
+        np.ascontiguousarray(mat[fit_order]),
         gene_ids,
         sample_ids,
         cc,
@@ -138,13 +150,16 @@ def run(
     for p in res["pairs"]:
         for s in PAIR_STATS:
             out[f"{s} {p['label']}"] = p[s]
-    table = pd.DataFrame(out)
+    # left_join onto the features metadata: the input order, in both modes.
+    back = np.argsort(fit_order)
+    table = pd.DataFrame(out).iloc[back].reset_index(drop=True)
 
     if params.get("mode") == "anova":
         labels = [p["label"] for p in res["pairs"]]
         table = table[ANOVA_COLUMNS[:5]].copy()
-        table["MaxLog2FCPair"] = ["" if k is None else labels[k] for k in res["max_pair"]]
-        table["MaxLog2FC"] = res["max_log2fc"]
+        max_pair = [res["max_pair"][i] for i in back]
+        table["MaxLog2FCPair"] = ["" if k is None else labels[k] for k in max_pair]
+        table["MaxLog2FC"] = np.asarray(res["max_log2fc"])[back]
         for c in ["AveExpr", "PValue", "AdjPValue", "F", "MaxLog2FC"]:
             table[c] = _r_character(table[c])
 
@@ -154,11 +169,11 @@ def run(
     if params.get("mode") == "anova":
         table["GroupId"] = table["GroupId"].astype(str)
     if diagnostics:
-        return table, _diag(res, gene_ids, sample_ids)
+        return table, _diag(res, gene_ids, sample_ids, fit_order)
     return table
 
 
-def _diag(res: dict, gene_ids: list[str], sample_ids: list[str]) -> dict:
+def _diag(res: dict, gene_ids: list[str], sample_ids: list[str], fit_order: list[int]) -> dict:
     """The fit's intermediates, with the column names of the R reference's ``r_edger.diag/``.
 
     ``samples``: replicate, lib_size (after filterByExpr), norm_factor, eff_lib_size.
@@ -200,6 +215,11 @@ def _diag(res: dict, gene_ids: list[str], sample_ids: list[str]) -> dict:
         {"id": ids, "trended_disp": d["trended_disp"], "tagwise_disp": d["tagwise_disp"]}
     )
     fitted = pd.DataFrame(d["fitted"], index=pd.Index(ids, name="id"), columns=sample_ids)
+    # The fit runs in GroupId order; report the kept genes in input order.
+    back = np.argsort([fit_order[i] for i in d["kept_idx"]])
+    genes = genes.iloc[back].reset_index(drop=True)
+    disp = disp.iloc[back].reset_index(drop=True)
+    fitted = fitted.iloc[back]
     dft = d["df_residual"] * nk
     scalars = {
         "fit_dispersion": d["fit_dispersion"],
