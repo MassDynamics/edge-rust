@@ -100,13 +100,19 @@ pub(crate) fn design_as_factor(x: &[f64], n: usize, p: usize) -> (Vec<usize>, us
     let v: Vec<f64> = (0..n)
         .map(|i| (0..p).map(|j| x[j * n + i] * z.powi(j as i32)).sum::<f64>() / p as f64)
         .collect();
-    // factor() of a double matches on as.character(), which keeps 15 significant digits: rows
-    // that differ only in the last bits (a rotated design, `design %*% Q`) are one level.
-    let key = |a: f64| format!("{a:.14e}");
+    // factor() of a double: levels are unique(as.character(sort(unique(x)))) and each value is
+    // matched on its as.character() string, which keeps 15 significant digits. Rows that differ
+    // only in the last bits (a rotated design, `design %*% Q`) are one level.
+    let key = rnum::rformat::r_as_character;
     let mut lv = v.clone();
     lv.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mut keys: Vec<String> = lv.iter().map(|&a| key(a)).collect();
-    keys.dedup();
+    let mut keys: Vec<String> = Vec::new();
+    for &a in &lv {
+        let k = key(a);
+        if !keys.contains(&k) {
+            keys.push(k);
+        }
+    }
     let g = v
         .iter()
         .map(|&a| keys.iter().position(|b| *b == key(a)).unwrap())
@@ -545,6 +551,16 @@ fn fit_leven_vec(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn design_as_factor_keys_levels_with_r_as_character() {
+        // Review deseq2 r4, N5: factor() matches on as.character(), which R computes with x87
+        // scaling. -3.161245995276595 is "-3.1612459952766" in R, the same string as
+        // -3.1612459952766, so edgeR:::designAsFactor(matrix(x)) gives 1 1 2 (2 levels) in the
+        // oracle. A correctly rounded {:.14e} key splits the first two rows.
+        let x = [-3.161245995276595, -3.1612459952766, 2.5];
+        assert_eq!(design_as_factor(&x, 3, 1), (vec![0, 0, 1], 2));
+    }
 
     #[test]
     fn oneway_and_levenberg_agree_on_a_oneway_design() {
