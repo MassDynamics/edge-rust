@@ -33,14 +33,15 @@ pub fn edger_runs() -> Vec<String> {
 }
 
 pub fn reference_json(run: &str) -> serde_json::Value {
-    let s = std::fs::read_to_string(ref_dir(run).join("reference.json")).expect("reference.json");
-    serde_json::from_str(&s).expect("json")
+    let p = ref_dir(run).join("reference.json");
+    let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    serde_json::from_str(&s).unwrap_or_else(|e| panic!("{}: {e}", p.display()))
 }
 
 pub fn manifest(run: &str) -> serde_json::Value {
     let p = corpus_dir().join("runs").join(run).join("manifest.json");
     let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
-    serde_json::from_str(&s).expect("json")
+    serde_json::from_str(&s).unwrap_or_else(|e| panic!("{}: {e}", p.display()))
 }
 
 pub fn scalar(run: &str, name: &str) -> f64 {
