@@ -39,7 +39,8 @@ pub fn reference_json(run: &str) -> serde_json::Value {
 
 pub fn manifest(run: &str) -> serde_json::Value {
     let p = corpus_dir().join("runs").join(run).join("manifest.json");
-    serde_json::from_str(&std::fs::read_to_string(p).expect("manifest")).expect("json")
+    let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    serde_json::from_str(&s).expect("json")
 }
 
 pub fn scalar(run: &str, name: &str) -> f64 {
