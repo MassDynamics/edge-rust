@@ -39,13 +39,19 @@ then bump the `rev` in deseq2-rust's `Cargo.toml`.
   direct `optim` of the null model agrees), and that gene's BH rank then shifts the omnibus
   AdjPValue of the other genes slightly (median 7e-4 relative on the probe). R's value also changes
   with the dcast row order, so it is not reproduced.
-- **A one-group fit that does not converge on the first gene of a call (review r3 R3-2, overnight
-  r1 M1).** When edgeR's one-group Newton-Raphson runs out of iterations, `fit_one_group_mat`
-  (`src/glm.c`) and `average_log_cpm` (`src/compute_cpm.c`) return an output variable they never
-  wrote. In practice it still holds the value written for the previous gene in the same call, and
-  the port reproduces that (`glm::OneGroup::resolve`, one slot per group in `mglmOneWay`, one in
-  `aveLogCPM`). On the first gene of a call R returns stack garbage (6.95e-310 in the oracle),
-  and the port returns the last iterate instead. The trigger is any low-depth sample next to
-  normal ones, under any normalisation: a library of 1 to 5 counts under "none", or one sample
-  thinned to 100 or 1,000 counts under TMM (`tests/edger_cases/k_lib*`, `thin*`, all within
-  1e-8 of production; before the emulation they drifted up to 3.5e-7).
+- **A one-group fit that does not converge before any gene of its call has been written (review
+  r3 R3-2, overnight r1 M1 and r2).** When edgeR's one-group Newton-Raphson runs out of
+  iterations, `fit_one_group_mat` (`src/glm.c`) and `average_log_cpm` (`src/compute_cpm.c`)
+  return an output variable they never wrote. In practice it still holds the last value written
+  in the same call, that of the last converged or all-zero gene, which need not be the previous
+  gene, and the port reproduces that (`glm::OneGroup::resolve`, one slot per group in
+  `mglmOneWay`, one in `aveLogCPM`). For every non-converged gene before the first written gene
+  of a call R returns stack garbage (6.95e-310 in the oracle), and the port returns the last
+  iterate instead; on the probe where this happens end to end, AveExpr differs by up to 2.4e-7.
+  A call is one group at one grid point of `estimateDisp`, one `glmFit`, or one `aveLogCPM`, so
+  the result depends on the GroupId order, which the port takes from production (numeric for
+  integer ids). The trigger is any low-depth sample next to normal ones, under any
+  normalisation: a library of 1 to 5 counts under "none", or one sample thinned to 100 or 1,000
+  counts under TMM (`tests/edger_cases/k_lib*`, `thin*`, all within 1e-8 of production; before
+  the emulation they drifted up to 3.5e-7). None of the 25 edgeR corpus runs that reach the fit
+  has a non-converged gene (counted on the port, whose stalls match R's on every logged probe).

@@ -126,8 +126,10 @@ def run(
         for a, b, c, d in zip(comparisons["left"], comparisons["right"], enc_l, enc_r)
     ]
     # .buildCountMatrixFromLongDT (dcast) orders the rows by GroupId and production fits in that
-    # order whatever the metadata order; the QL prior depends on it at about 1e-10, which the CIs
-    # and F carry to about 1e-7 (review deseq2 r4, SE4-M1).
+    # order whatever the metadata order. The QL prior depends on it at about 1e-10, which the CIs
+    # and F carry to about 1e-7 (review deseq2 r4, SE4-M1); when a one-group fit does not
+    # converge, edgeR reuses the last written gene's value, and then AveExpr and df.prior move by
+    # about 3e-8 with the order (review overnight r2, Minor 1).
     input_ids = [str(g) for g in counts.index]
     fit_order = _group_id_order(input_ids)
     gene_ids = [input_ids[i] for i in fit_order]
