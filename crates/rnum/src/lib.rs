@@ -41,6 +41,7 @@ pub mod lowess;
 pub mod nmath;
 pub mod optim;
 pub mod quad;
+pub mod rformat;
 pub mod rng;
 pub mod splines;
 pub mod toptable;

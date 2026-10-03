@@ -176,6 +176,145 @@ impl Ld {
         };
         Ld::round(neg, n, e)
     }
+
+    pub fn mul(self, o: Ld) -> Ld {
+        let neg = self.neg != o.neg;
+        if self.m == 0 || o.m == 0 {
+            return Ld { neg, ..Ld::ZERO };
+        }
+        Ld::round(neg, self.m as u128 * o.m as u128, self.e + o.e)
+    }
+
+    /// `self < o` for non-negative values.
+    pub fn lt_pos(self, o: Ld) -> bool {
+        if self.m == 0 || o.m == 0 {
+            return self.m < o.m;
+        }
+        (self.e, self.m) < (o.e, o.m)
+    }
+
+    /// `nearbyintl` of a non-negative value below 2^64 (ties to even).
+    pub fn nearbyint(self) -> u64 {
+        if self.m == 0 {
+            return 0;
+        }
+        if self.e >= 0 {
+            return self.m << self.e;
+        }
+        let sh = (-self.e) as u32;
+        if sh > 64 {
+            return 0; // below 0.5
+        }
+        let m = self.m as u128;
+        let int = m >> sh;
+        let rem = m & ((1u128 << sh) - 1);
+        let half = 1u128 << (sh - 1);
+        (int + (rem > half || (rem == half && int & 1 == 1)) as u128) as u64
+    }
+
+    /// `powl(10, k)` as glibc returns it on x86-64, taken as 10^k correctly rounded to 64 bits
+    /// (exact for 0 <= k <= 27).
+    pub fn pow10(k: i32) -> Ld {
+        let j = k.unsigned_abs();
+        let mut five = vec![1u64]; // 5^j, little-endian 64-bit limbs
+        for _ in 0..j {
+            let mut carry = 0u128;
+            for l in five.iter_mut() {
+                let v = *l as u128 * 5 + carry;
+                *l = v as u64;
+                carry = v >> 64;
+            }
+            if carry != 0 {
+                five.push(carry as u64);
+            }
+        }
+        let bits = big_bits(&five);
+        if k >= 0 {
+            // 5^j * 2^j: the top 66 bits, with everything below folded into a sticky bit.
+            if bits <= 127 {
+                return Ld::round(false, big_low_u128(&five), k);
+            }
+            let sh = bits - 66;
+            let sticky = big_any_below(&five, sh);
+            return Ld::round(
+                false,
+                big_shr_u128(&five, sh) | sticky as u128,
+                k + sh as i32,
+            );
+        }
+        // 1 / (5^j * 2^j): 66 quotient bits of 2^s / 5^j by binary long division.
+        let s = bits + 65;
+        let mut rem: Vec<u64> = vec![0; five.len() + 1];
+        let mut q = 0u128;
+        for i in (0..=s).rev() {
+            big_shl1(&mut rem);
+            if i == s {
+                rem[0] |= 1;
+            }
+            let bit = !big_lt(&rem, &five);
+            if bit {
+                big_sub(&mut rem, &five);
+            }
+            q = (q << 1) | bit as u128;
+        }
+        let sticky = rem.iter().any(|&l| l != 0);
+        Ld::round(false, q | sticky as u128, k - s as i32)
+    }
+}
+
+fn big_bits(a: &[u64]) -> u32 {
+    let top = a.iter().rposition(|&l| l != 0).unwrap_or(0);
+    top as u32 * 64 + (64 - a[top].leading_zeros())
+}
+
+fn big_low_u128(a: &[u64]) -> u128 {
+    a[0] as u128 | (*a.get(1).unwrap_or(&0) as u128) << 64
+}
+
+fn big_bit(a: &[u64], i: u32) -> bool {
+    a.get((i / 64) as usize)
+        .is_some_and(|l| (l >> (i % 64)) & 1 == 1)
+}
+
+/// `a >> sh`, where the result fits 128 bits.
+fn big_shr_u128(a: &[u64], sh: u32) -> u128 {
+    (0..128).fold(0u128, |acc, i| acc | ((big_bit(a, sh + i) as u128) << i))
+}
+
+/// Whether any of the low `sh` bits of `a` is set.
+fn big_any_below(a: &[u64], sh: u32) -> bool {
+    (0..sh).any(|i| big_bit(a, i))
+}
+
+fn big_shl1(a: &mut [u64]) {
+    let mut carry = 0u64;
+    for l in a.iter_mut() {
+        let next = *l >> 63;
+        *l = (*l << 1) | carry;
+        carry = next;
+    }
+}
+
+/// `a < b`; `a` may have more limbs than `b`.
+fn big_lt(a: &[u64], b: &[u64]) -> bool {
+    for i in (0..a.len().max(b.len())).rev() {
+        let (x, y) = (*a.get(i).unwrap_or(&0), *b.get(i).unwrap_or(&0));
+        if x != y {
+            return x < y;
+        }
+    }
+    false
+}
+
+/// `a -= b`, with `a >= b`.
+fn big_sub(a: &mut [u64], b: &[u64]) {
+    let mut borrow = false;
+    for (i, l) in a.iter_mut().enumerate() {
+        let (v, b1) = l.overflowing_sub(*b.get(i).unwrap_or(&0));
+        let (v, b2) = v.overflowing_sub(borrow as u64);
+        *l = v;
+        borrow = b1 || b2;
+    }
 }
 
 /// R's `sum()` of doubles (`rsum`, no NA removal).

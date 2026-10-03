@@ -1,10 +1,12 @@
 """The production edgeR table around the Rust engine.
 
 Mirrors what MDFlexiComparisons does after the engine call: the left join of the engine table to
-every gene id, the integer GroupId (rows in numeric GroupId order when every id is an integer,
-as production's final table is, otherwise by GroupId as a string), and for ANOVA runs
-``.packageANOVAOutput`` (``R/runANOVA.R``): the omnibus columns plus ``MaxLog2FCPair`` /
-``MaxLog2FC``, every column as a string with NA written as "".
+every gene id, the integer GroupId, and for ANOVA runs ``.packageANOVAOutput``
+(``R/runANOVA.R``): the omnibus columns plus ``MaxLog2FCPair`` / ``MaxLog2FC``, every column as
+R's ``as.character`` with NA written as "". Rows stay in the input row order: production's final
+table is ``featuresMetadata %>% left_join(stats)`` (``createResultsSummarizedExperiment.R``), so
+it follows the features metadata for pairwise and ANOVA alike, and the caller passes the counts
+in that order.
 """
 
 from __future__ import annotations
@@ -37,12 +39,14 @@ def _control_specs(control_cols) -> list[tuple[str, str]]:
 
 def _is_int_id(g: str) -> bool:
     """Whether ``type_convert`` would read the GroupId as an integer."""
-    return g.isascii() and g.lstrip("-").isdigit()
+    return g.isascii() and g.removeprefix("-").isdigit()
 
 
-def _r_character(x: float) -> str:
-    """``as.character`` of a double: 15 significant digits, NA as ""."""
-    return "" if np.isnan(x) else f"{x:.15g}"
+def _r_character(x) -> list[str]:
+    """R's ``as.character`` of each double (``1e5`` is "1e+05"), NA as ""."""
+    x = np.asarray(x, dtype=np.float64)
+    out = _core.r_as_character(x.tolist())
+    return ["" if na else s for na, s in zip(np.isnan(x), out)]
 
 
 def run(
@@ -54,7 +58,8 @@ def run(
 ):
     """Run the edgeR QL engine and return the production output table.
 
-    counts: genes x samples, index = gene ids, columns = sample ids; finite, non-negative.
+    counts: genes x samples, index = gene ids, columns = sample ids; finite, non-negative. The
+        output rows follow this row order, which should be the features metadata order.
     sample_info: one row per sample, sample ids in a ``replicate`` column or the index, the
         condition column and the control columns.
     comparisons: ``left``, ``right`` (output labels) and optionally ``encoded_left``,
@@ -70,9 +75,10 @@ def run(
     cc = params.get("condition_col", "condition")
     si = sample_info.set_index("replicate") if "replicate" in sample_info.columns else sample_info
     si = si.set_axis(si.index.astype(str))  # a copy: the caller's frame is left alone
-    if counts.index.duplicated().any():
+    # Ids become strings below, so 1001 and "1001" are the same id.
+    if pd.Index([str(g) for g in counts.index]).duplicated().any():
         raise ValueError("counts has duplicate gene ids")
-    if counts.columns.duplicated().any():
+    if pd.Index([str(s) for s in counts.columns]).duplicated().any():
         raise ValueError("counts has duplicate sample ids")
     # dcast orders the sample columns by id (C collation); the fit depends on that order.
     counts = counts[sorted(counts.columns, key=lambda s: str(s).encode())]
@@ -133,23 +139,14 @@ def run(
         for s in PAIR_STATS:
             out[f"{s} {p['label']}"] = p[s]
     table = pd.DataFrame(out)
-    # Production's final table is in numeric GroupId order when every id is an integer;
-    # otherwise rows follow the merge's character key (C collation).
-    if all(_is_int_id(g) for g in gene_ids):
-        order = sorted(range(len(gene_ids)), key=lambda i: int(gene_ids[i]))
-    else:
-        order = sorted(range(len(gene_ids)), key=lambda i: gene_ids[i].encode())
-    table = table.iloc[order].reset_index(drop=True)
 
     if params.get("mode") == "anova":
         labels = [p["label"] for p in res["pairs"]]
-        max_pair = [res["max_pair"][i] for i in order]
-        max_fc = res["max_log2fc"][order]
         table = table[ANOVA_COLUMNS[:5]].copy()
-        table["MaxLog2FCPair"] = ["" if k is None else labels[k] for k in max_pair]
-        table["MaxLog2FC"] = max_fc
+        table["MaxLog2FCPair"] = ["" if k is None else labels[k] for k in res["max_pair"]]
+        table["MaxLog2FC"] = res["max_log2fc"]
         for c in ["AveExpr", "PValue", "AdjPValue", "F", "MaxLog2FC"]:
-            table[c] = [_r_character(v) for v in table[c]]
+            table[c] = _r_character(table[c])
 
     # type_convert(out, "integer", "GroupId"), when every id is an integer.
     if all(_is_int_id(g) for g in table["GroupId"]):

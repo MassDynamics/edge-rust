@@ -85,11 +85,11 @@ def test_table_matches_reference_output(run):
     )
     assert list(got.columns) == list(want.columns)
     assert len(got) == len(want)
-    # The reference CSVs are in C-collation order; production's final table (results.rds) and
-    # the port are in numeric GroupId order.
-    gid = got["GroupId"].astype(int).to_numpy()
-    assert (np.diff(gid) > 0).all(), "rows not in numeric GroupId order"
-    want = want.iloc[np.argsort(want["GroupId"].astype(int).to_numpy(), kind="stable")]
+    # The port keeps the input row order (production's follows the features metadata); the
+    # reference CSVs are in C-collation order.
+    assert [str(g) for g in got["GroupId"]] == list(counts.index)
+    pos = {g: i for i, g in enumerate(counts.index)}
+    want = want.iloc[np.argsort([pos[str(g)] for g in want["GroupId"]], kind="stable")]
     want = want.reset_index(drop=True)
     if anova:
         want = want.fillna("")

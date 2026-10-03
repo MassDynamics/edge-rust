@@ -114,18 +114,57 @@ def test_non_ascii_digit_group_id_is_not_converted():
     assert out["GroupId"].tolist().count("3") == 1
 
 
+def shuffled_ids(n: int) -> list[str]:
+    """Integer ids in neither numeric nor C-collation order, negatives included."""
+    ids = [str(i) for i in range(-5, n - 5)]
+    return ids[1::2][::-1] + ids[0::2]
+
+
 @pytest.mark.parametrize("mode", ["discovery", "anova"])
-def test_rows_are_in_numeric_group_id_order(mode):
-    """Production's final table (runDiscovery and runANOVA) is in numeric GroupId order, so 9
-    comes before 10 and 100; a C-collation sort would put "10" and "100" first."""
-    out = edge_rust.run(counts(120), sample_info(), CMP, {"mode": mode})
-    ids = [int(g) for g in out["GroupId"]]
-    assert ids == sorted(ids)
+def test_rows_follow_the_input_order(mode):
+    """Review deseq2 r2, m-2: production's final table is ``featuresMetadata %>% left_join(stats)``
+    (createResultsSummarizedExperiment.R:61), so edgeR pairwise and ANOVA rows follow the
+    features metadata, checked in the image with shuffled metadata (ro_pw_shuf_edger,
+    ro_an_shuf_edger). The caller passes counts in that order."""
+    c = counts(120)
+    c.index = shuffled_ids(120)
+    out = edge_rust.run(c, sample_info(), CMP, {"mode": mode})
+    assert [str(g) for g in out["GroupId"]] == list(c.index)
 
 
-def test_non_integer_ids_keep_string_order():
-    """With any non-integer GroupId the ids stay strings, ordered by the merge's C collation."""
+def test_non_integer_ids_follow_the_input_order():
+    """With any non-integer GroupId the ids stay strings, in the input order."""
     c = counts(12)
-    c.index = list(c.index[:-1]) + ["g"]
+    c.index = list(c.index[:-1][::-1]) + ["g"]
     out = edge_rust.run(c, sample_info(), CMP, {})
-    assert out["GroupId"].tolist() == sorted(c.index, key=str.encode)
+    assert out["GroupId"].tolist() == list(c.index)
+
+
+def test_double_minus_id_does_not_crash():
+    """Review deseq2 r2 nit: "--5" passed lstrip("-").isdigit() and int("--5") raised."""
+    c = counts()
+    c.index = ["--5"] + list(c.index[1:])
+    out = edge_rust.run(c, sample_info(), CMP, {})
+    assert out["GroupId"].tolist()[0] == "--5"
+
+
+def test_int_and_string_ids_are_duplicates():
+    """Review deseq2 r2 nit: 1001 and "1001" both become GroupId 1001, so they are one id."""
+    c = counts(4)
+    c.index = pd.Index([1001, "1001", 7, 8], dtype=object)
+    with pytest.raises(ValueError, match="duplicate gene ids"):
+        edge_rust.run(c, sample_info(), CMP, {})
+    c = counts(4)
+    c.columns = pd.Index([0, "0", 1, 2, 3, 4], dtype=object)
+    with pytest.raises(ValueError, match="duplicate sample ids"):
+        edge_rust.run(c, sample_info(), CMP, {})
+
+
+def test_anova_strings_are_r_as_character():
+    """Review deseq2 r2, m-3: .packageANOVAOutput uses as.character, which writes 1e5 as
+    "1e+05" (C's %.15g gives "100000"). Values from R 4.5.0 in the image."""
+    from edge_rust.edger import _r_character
+
+    x = [1e5, 110000.0, 1e-4, 0.00012, 1234567890123456.0, -3.161245995276595, np.nan, np.inf]
+    want = ["1e+05", "110000", "1e-04", "0.00012", "1234567890123456", "-3.1612459952766", ""]
+    assert _r_character(x) == want + ["Inf"]

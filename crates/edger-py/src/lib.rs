@@ -195,9 +195,19 @@ fn matrix<'py>(
     Ok(a.into_pyarray(py).into_any())
 }
 
+/// R's `as.character()` of each double (`rnum::rformat`); NaN gives "NaN".
+#[pyfunction]
+fn r_as_character(values: Vec<f64>) -> Vec<String> {
+    values
+        .into_iter()
+        .map(rnum::rformat::r_as_character)
+        .collect()
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(edger_pipeline, m)?)?;
+    m.add_function(wrap_pyfunction!(r_as_character, m)?)?;
     m.add_function(wrap_pyfunction!(_selftest_panic, m)?)?;
     Ok(())
 }
