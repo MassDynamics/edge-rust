@@ -168,3 +168,28 @@ def test_anova_strings_are_r_as_character():
     x = [1e5, 110000.0, 1e-4, 0.00012, 1234567890123456.0, -3.161245995276595, np.nan, np.inf]
     want = ["1e+05", "110000", "1e-04", "0.00012", "1234567890123456", "-3.1612459952766", ""]
     assert _r_character(x) == want + ["Inf"]
+
+
+class _TaggedCore:
+    """Tags every string ``_core.r_as_character`` returns (review deseq2 r3, SE-M1)."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def r_as_character(self, values):
+        return ["R:" + s for s in self._real.r_as_character(values)]
+
+
+def test_anova_string_columns_come_from_r_as_character(monkeypatch):
+    """The ANOVA string columns go through ``r_as_character``, not a Python format."""
+    import edge_rust.edger as m
+
+    monkeypatch.setattr(m, "_core", _TaggedCore(m._core))
+    t = edge_rust.run(counts(), sample_info(), CMP, {"mode": "anova"})
+    for col in ["AveExpr", "PValue", "AdjPValue", "F", "MaxLog2FC"]:
+        vals = [v for v in t[col] if v != ""]
+        assert vals, f"{col}: no values"
+        assert all(v.startswith("R:") for v in vals), f"{col} bypasses r_as_character"

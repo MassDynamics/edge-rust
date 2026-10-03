@@ -12,7 +12,9 @@ uv run pytest
 cargo test --release --workspace
 ```
 
-The golden tests read the count corpus at `~/wd/md-count-golden-corpus` and skip without it.
+The golden tests read the count corpus at `~/wd/md-count-golden-corpus` (or `MD_COUNT_CORPUS_DIR`).
+The Python golden tests fail without it (`EDGE_RUST_ALLOW_NO_CORPUS=1` skips them instead); the
+Rust `glibm_golden` test skips.
 
 ## Consumers
 

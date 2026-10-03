@@ -12,11 +12,13 @@
 
 use crate::ldouble::Ld;
 
-const TBL: [f64; 23] = [
+// R's `tbl[]` with `KP_MAX 27` on long-double builds. Its literals have no `L` suffix, so
+// 1e23..1e27 are the double values (`tbl[23]` is 99999999999999991611392), as here.
+const TBL: [f64; 28] = [
     1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16,
-    1e17, 1e18, 1e19, 1e20, 1e21, 1e22,
+    1e17, 1e18, 1e19, 1e20, 1e21, 1e22, 1e23, 1e24, 1e25, 1e26, 1e27,
 ];
-const KP_MAX: i32 = 22;
+const KP_MAX: i32 = 27;
 const DIGITS: i32 = 15; // DBL_DIG
 
 /// `scientific()` at 15 digits for `r > 0`: `(nsig, kpower, roundingwidens)`.

@@ -199,6 +199,7 @@ impl Ld {
             return 0;
         }
         if self.e >= 0 {
+            debug_assert!(self.e == 0, "nearbyint of a value at or above 2^64");
             return self.m << self.e;
         }
         let sh = (-self.e) as u32;
