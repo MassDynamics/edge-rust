@@ -6,7 +6,10 @@ Corpus-free: every input and reference lives in ``tests/edger_cases/<case>/``, g
 df.residual.adj = 0 and 3.4% at 0 < df.residual.adj < 0.01 (review r1, stats e); the rest are the
 review's adversarial "matches edgeR" cases (empty group, singleton group, 1 residual df, 1 to 4
 genes, dispersion capped at 4, zero groups with and without controls, sparse RLE and
-upperquartile input).
+upperquartile input). ``k_lib*_none`` (one sample with a library of 1 to 5 counts, norm none)
+and ``thin*_tmm`` (one sample of the corpus count_synth case thinned to 100 or 1,000 counts)
+make a one-group fit miss convergence in estimateDisp, where edgeR reuses the previous gene's
+coefficient (review overnight r1, M1).
 """
 
 from __future__ import annotations

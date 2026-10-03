@@ -37,9 +37,38 @@ pub fn unit_nb_deviance(y: f64, mu: f64, phi: f64) -> f64 {
     }
 }
 
+/// One gene's one-group fit, kept apart by what the C does with its output variable.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum OneGroup {
+    /// `glm_one_group_vec` writes `*beta`: converged, or an all-zero row (`-Inf`).
+    Written(f64),
+    /// `fit_one_group_mat`'s Poisson shortcut, which does not touch `ocoef`.
+    Poisson(f64),
+    /// Out of iterations: the C leaves `*beta` unwritten. Holds the last iterate.
+    NotConverged(f64),
+}
+
+impl OneGroup {
+    /// The value edgeR returns. On non-convergence `fit_one_group_mat` (`src/glm.c:154`) and
+    /// `average_log_cpm` (`src/compute_cpm.c:139`) copy out an `ocoef` that was not written, which
+    /// in practice still holds the last value written in the same `.Call`, i.e. the previous
+    /// gene's (oracle: every probe of review overnight r1, M1). `slot` carries that value across
+    /// genes. Before the first write R returns stack garbage, which cannot be matched; the last
+    /// iterate is returned then (README, known differences).
+    pub(crate) fn resolve(self, slot: &mut Option<f64>) -> f64 {
+        match self {
+            OneGroup::Written(b) => {
+                *slot = Some(b);
+                b
+            }
+            OneGroup::Poisson(b) => b,
+            OneGroup::NotConverged(last) => slot.unwrap_or(last),
+        }
+    }
+}
+
 /// `glm_one_group_vec` for one gene. `start` NaN means R's `NA` (start from the gamma-limit
-/// solution). The C leaves the result unset when Newton does not converge in `maxit` steps; the
-/// last iterate is returned here.
+/// solution). The caller turns the result into R's value with [`OneGroup::resolve`].
 pub(crate) fn one_group(
     y: &[f64],
     off: &[f64],
@@ -47,7 +76,17 @@ pub(crate) fn one_group(
     maxit: usize,
     tol: f64,
     start: f64,
-) -> f64 {
+) -> OneGroup {
+    if disp == 0.0 {
+        // fit_one_group_mat's Poisson shortcut, checked before the all-zero rule as in the C.
+        let sl: f64 = off.iter().map(|o| exp(*o)).sum();
+        let sc: f64 = y.iter().sum();
+        return OneGroup::Poisson(if sc == 0.0 {
+            f64::NEG_INFINITY
+        } else {
+            ln(sc / sl)
+        });
+    }
     let n = y.len();
     let mut allzero = true;
     let mut cur;
@@ -67,13 +106,7 @@ pub(crate) fn one_group(
         allzero = !y.iter().any(|&v| v > 1e-10);
     }
     if allzero {
-        return f64::NEG_INFINITY;
-    }
-    if disp == 0.0 {
-        // fit_one_group_mat's Poisson shortcut.
-        let sl: f64 = off.iter().map(|o| exp(*o)).sum();
-        let sc: f64 = y.iter().sum();
-        return ln(sc / sl);
+        return OneGroup::Written(f64::NEG_INFINITY);
     }
     for _ in 0..maxit {
         let mut dl = 0.0;
@@ -87,10 +120,10 @@ pub(crate) fn one_group(
         let step = dl / info;
         cur += step;
         if step.abs() < tol {
-            break;
+            return OneGroup::Written(cur);
         }
     }
-    cur
+    OneGroup::NotConverged(cur)
 }
 
 /// `designAsFactor`: group of each library (0-based, levels in increasing order of
@@ -215,10 +248,13 @@ pub fn ave_log_cpm(
     let (prior, off) = prior_offsets(&offset, prior_count);
     let lnm = ln(1e6f64);
     let ln2 = std::f64::consts::LN_2;
+    // One .Call over all genes, so one ocoef slot across them.
+    let mut slot = None;
     y.chunks(nlib)
         .map(|r| {
             let yy: Vec<f64> = r.iter().zip(&prior).map(|(a, b)| a + b).collect();
-            (one_group(&yy, &off, disp, 50, 1e-10, f64::NAN) + lnm) / ln2
+            let b = one_group(&yy, &off, disp, 50, 1e-10, f64::NAN).resolve(&mut slot);
+            (b + lnm) / ln2
         })
         .collect()
 }
@@ -256,6 +292,9 @@ fn oneway(
     let mut deviance = vec![0.0; ngenes];
     let mut ys = Vec::with_capacity(nlib);
     let mut os = Vec::with_capacity(nlib);
+    // mglmOneWay calls mglmOneGroup once per group over all genes, so each group has its own
+    // ocoef slot, carried from gene to gene.
+    let mut slots: Vec<Option<f64>> = vec![None; p];
     for gene in 0..ngenes {
         let row = &y[gene * nlib..(gene + 1) * nlib];
         let mut beta = vec![0.0; p];
@@ -277,7 +316,7 @@ fn oneway(
                     }
                 }
             };
-            let b = one_group(&ys, &os, disp[gene], 50, 1e-10, st);
+            let b = one_group(&ys, &os, disp[gene], 50, 1e-10, st).resolve(&mut slots[g]);
             beta[g] = if b.is_nan() { b } else { b.max(-1e8) };
         }
         let mut dev = 0.0;
@@ -560,6 +599,40 @@ mod tests {
         // oracle. A correctly rounded {:.14e} key splits the first two rows.
         let x = [-3.161245995276595, -3.1612459952766, 2.5];
         assert_eq!(design_as_factor(&x, 3, 1), (vec![0, 0, 1], 2));
+    }
+
+    // Review overnight r1, M1. Gene 2's one-group Newton-Raphson does not converge in 50
+    // iterations at dispersion 0.8, and edgeR then returns the previous gene's coefficient. Oracle
+    // (edgeR 4.8.2): mglmOneGroup(rbind(c(30, 1, 12), c(37, 2, 15)), dispersion = 0.8,
+    // offset = log(lib)) and glmFit(..., matrix(1, 3, 1)) both give -8.0000944123408733 twice.
+    // Gene 2 alone gives 6.95e-310 in R (stack garbage); the port keeps the last iterate there.
+    #[test]
+    fn non_converged_one_group_fit_reuses_the_previous_genes_coefficient() {
+        let lib: [f64; 3] = [107774.0, 2.0, 104372.0];
+        let off: Vec<f64> = lib.iter().map(|l| ln(*l)).collect();
+        let y = [30.0, 1.0, 12.0, 37.0, 2.0, 15.0];
+        let fit = glm_fit(&y, 3, &[1.0; 3], 1, &off, &[0.8, 0.8], None).unwrap();
+        let want = -8.000_094_412_340_873;
+        assert!((fit.coefficients[0] - want).abs() < 1e-13 * want.abs());
+        assert_eq!(fit.coefficients[1], fit.coefficients[0]);
+        let alone = glm_fit(&y[3..], 3, &[1.0; 3], 1, &off, &[0.8], None).unwrap();
+        assert!(matches!(
+            one_group(&y[3..], &off, 0.8, 50, 1e-10, f64::NAN),
+            OneGroup::NotConverged(_)
+        ));
+        assert!(alone.coefficients[0] > -7.0 && alone.coefficients[0] < -6.0);
+    }
+
+    // The same reuse in average_log_cpm. Oracle: aveLogCPM(rbind(c(30, 1, 12), c(0, 3, 15)),
+    // lib.size = lib, dispersion = 0.3725290298461914) gives 8.1410848659971418 twice.
+    #[test]
+    fn non_converged_ave_log_cpm_reuses_the_previous_genes_value() {
+        let lib = [107774.0, 2.0, 104372.0];
+        let y = [30.0, 1.0, 12.0, 0.0, 3.0, 15.0];
+        let a = ave_log_cpm(&y, 3, &lib, 0.3725290298461914, 2.0);
+        let want = 8.141_084_865_997_142;
+        assert!((a[0] - want).abs() < 1e-13 * want);
+        assert_eq!(a[1], a[0]);
     }
 
     #[test]

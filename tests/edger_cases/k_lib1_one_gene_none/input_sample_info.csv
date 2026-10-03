@@ -1,0 +1,10 @@
+replicate,condition,age,batch
+s1,A,31,b1
+s2,A,45,b2
+s3,A,52,b1
+s4,B,38,b2
+s5,B,61,b1
+s6,B,29,b2
+s7,C,44,b1
+s8,C,57,b2
+s9,C,50,b1
