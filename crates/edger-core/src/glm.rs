@@ -51,10 +51,11 @@ pub(crate) enum OneGroup {
 impl OneGroup {
     /// The value edgeR returns. On non-convergence `fit_one_group_mat` (`src/glm.c:154`) and
     /// `average_log_cpm` (`src/compute_cpm.c:139`) copy out an `ocoef` that was not written, which
-    /// in practice still holds the last value written in the same `.Call`, i.e. the previous
-    /// gene's (oracle: every probe of review overnight r1, M1). `slot` carries that value across
-    /// genes. Before the first write R returns stack garbage, which cannot be matched; the last
-    /// iterate is returned then (README, known differences).
+    /// in practice still holds the last value written in the same `.Call`: the last converged or
+    /// all-zero gene's, which need not be the previous gene (oracle: review overnight r1, M1, and
+    /// r2, Nit 1). `slot` carries that value across genes. For every stalled gene before the first
+    /// write R returns stack garbage, which cannot be matched; the last iterate is returned then
+    /// (README, known differences).
     pub(crate) fn resolve(self, slot: &mut Option<f64>) -> f64 {
         match self {
             OneGroup::Written(b) => {
@@ -237,6 +238,12 @@ fn prior_offsets(offset: &[f64], pc: f64) -> (Vec<f64>, Vec<f64>) {
 }
 
 /// `aveLogCPM.default(y, lib.size, prior.count, dispersion)` with a scalar dispersion.
+///
+/// `disp` must be positive. R's `average_log_cpm` has no Poisson branch, but this goes through
+/// [`one_group`], which takes `fit_one_group_mat`'s shortcut at `disp == 0.0`, so a zero
+/// dispersion is not R's answer here. The pipeline never passes one: its only call is at
+/// estimateDisp's common dispersion, `0.1 * 2^x` with x on the grid, so about 1e-4 at least
+/// (review overnight r2, Nit 5).
 pub fn ave_log_cpm(
     y: &[f64],
     nlib: usize,
@@ -633,6 +640,76 @@ mod tests {
         let want = 8.141_084_865_997_142;
         assert!((a[0] - want).abs() < 1e-13 * want);
         assert_eq!(a[1], a[0]);
+    }
+
+    // A stalled gene takes the last value written in the call, which need not be the previous
+    // gene's, and every stalled gene before the first write is unmatched (review overnight r2,
+    // Nit 1). Oracle (edgeR 4.8.2, glmFit(y, matrix(1, 3, 1), dispersion = 0.8,
+    // offset = log(lib), prior.count = 0)), genes (30, 1, 12) and (31, 1, 13) converge,
+    // (37, 2, 15), (25, 2, 10) and (33, 3, 11) do not:
+    //   (30,1,12), (37,2,15), (25,2,10):            -8.0000944123408733 three times
+    //   (30,1,12), (37,2,15), (31,1,13), (25,2,10): -8.0000944123408733 twice, then
+    //                                               -7.9543886446353858 twice
+    //   (37,2,15), (25,2,10), (30,1,12), (33,3,11): 6.9533521916864287e-310 twice (garbage),
+    //                                               then -8.0000944123408733 twice
+    //   (0,0,0), (37,2,15):                         -1e8 twice (the all-zero row writes -Inf)
+    #[test]
+    fn stalled_genes_take_the_last_written_value() {
+        let lib: [f64; 3] = [107774.0, 2.0, 104372.0];
+        let off: Vec<f64> = lib.iter().map(|l| ln(*l)).collect();
+        let fit = |y: &[f64]| {
+            let n = y.len() / 3;
+            glm_fit(y, 3, &[1.0; 3], 1, &off, &vec![0.8; n], None)
+                .unwrap()
+                .coefficients
+        };
+        let (a, b) = (-8.000_094_412_340_873, -7.954_388_644_635_386);
+        let close = |x: f64, w: f64| (x - w).abs() < 1e-13 * w.abs();
+        let c = fit(&[30.0, 1.0, 12.0, 37.0, 2.0, 15.0, 25.0, 2.0, 10.0]);
+        assert!(close(c[0], a));
+        assert_eq!((c[1], c[2]), (c[0], c[0]));
+        let c = fit(&[
+            30.0, 1.0, 12.0, 37.0, 2.0, 15.0, 31.0, 1.0, 13.0, 25.0, 2.0, 10.0,
+        ]);
+        assert!(close(c[0], a) && close(c[2], b));
+        assert_eq!((c[1], c[3]), (c[0], c[2]));
+        let c = fit(&[
+            37.0, 2.0, 15.0, 25.0, 2.0, 10.0, 30.0, 1.0, 12.0, 33.0, 3.0, 11.0,
+        ]);
+        assert!(close(c[2], a));
+        assert_eq!(c[3], c[2]);
+        let c = fit(&[0.0, 0.0, 0.0, 37.0, 2.0, 15.0]);
+        assert_eq!((c[0], c[1]), (-1e8, -1e8));
+    }
+
+    // A stalled first gene must not take a value left over from an earlier call: the slot is one
+    // .Call's, so it starts empty on every call (review overnight r2, SE).
+    #[test]
+    fn ave_log_cpm_slot_does_not_outlive_the_call() {
+        let lib = [107774.0, 2.0, 104372.0];
+        let y = [30.0, 1.0, 12.0, 0.0, 3.0, 15.0];
+        let disp = 0.3725290298461914;
+        let both = ave_log_cpm(&y, 3, &lib, disp, 2.0);
+        let (pr, off) = prior_offsets(&lib.iter().map(|l| ln(*l)).collect::<Vec<_>>(), 2.0);
+        let yy: Vec<f64> = y[3..].iter().zip(&pr).map(|(a, b)| a + b).collect();
+        let OneGroup::NotConverged(last) = one_group(&yy, &off, disp, 50, 1e-10, f64::NAN) else {
+            panic!("gene 2 is expected to stall");
+        };
+        let alone = ave_log_cpm(&y[3..], 3, &lib, disp, 2.0);
+        assert_eq!(alone[0], (last + ln(1e6)) / std::f64::consts::LN_2);
+        assert_ne!(alone[0], both[1]);
+    }
+
+    // fit_one_group_mat's Poisson shortcut does not write ocoef, so a dispersion-0 gene must not
+    // feed the next gene's stalled fit (review overnight r2, SE).
+    #[test]
+    fn poisson_gene_does_not_fill_the_slot() {
+        let lib: [f64; 3] = [107774.0, 2.0, 104372.0];
+        let off: Vec<f64> = lib.iter().map(|l| ln(*l)).collect();
+        let y = [30.0, 1.0, 12.0, 37.0, 2.0, 15.0];
+        let fit = glm_fit(&y, 3, &[1.0; 3], 1, &off, &[0.0, 0.8], None).unwrap();
+        let alone = glm_fit(&y[3..], 3, &[1.0; 3], 1, &off, &[0.8], None).unwrap();
+        assert_eq!(fit.coefficients[1], alone.coefficients[0]);
     }
 
     #[test]
