@@ -37,6 +37,7 @@ def _control_specs(control_cols) -> list[tuple[str, str]]:
     return [(c["Column"], c["Type"]) for c in control_cols]
 
 
+# _is_int_id and _group_id_order have a twin in deseq2-rust's deseq2.py; change both together.
 def _is_int_id(g: str) -> bool:
     """Whether ``type_convert`` would read the GroupId as an integer."""
     return g.isascii() and g.removeprefix("-").isdigit()
@@ -122,8 +123,8 @@ def run(
         for a, b, c, d in zip(comparisons["left"], comparisons["right"], enc_l, enc_r)
     ]
     # .buildCountMatrixFromLongDT (dcast) orders the rows by GroupId and production fits in that
-    # order whatever the metadata order; the QL prior depends on it at about 1e-7 (review deseq2
-    # r4, SE4-M1).
+    # order whatever the metadata order; the QL prior depends on it at about 1e-10, which the CIs
+    # and F carry to about 1e-7 (review deseq2 r4, SE4-M1).
     input_ids = [str(g) for g in counts.index]
     fit_order = _group_id_order(input_ids)
     gene_ids = [input_ids[i] for i in fit_order]

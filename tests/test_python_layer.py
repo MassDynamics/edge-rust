@@ -207,8 +207,8 @@ def _nb_counts(ng: int = 3000, seed: int = 1) -> pd.DataFrame:
 @pytest.mark.parametrize("mode", ["discovery", "anova"])
 def test_fit_does_not_depend_on_the_input_row_order(mode):
     """Review deseq2 r4, SE4-M1: production fits on the dcast matrix, in GroupId order, whatever
-    the metadata order; the QL prior depends on row order at about 1e-7. Shuffled rows give the
-    sorted run's numbers exactly. The ids 500..3499 also tell numeric from bytewise order."""
+    the metadata order; the QL prior depends on row order at about 1e-10, which the CIs and F carry
+    to about 1e-7. Shuffled rows give the sorted run's numbers exactly."""
     c = _nb_counts()
     want = edge_rust.run(c, sample_info(), CMP, {"mode": mode})
     shuf = c.iloc[np.random.default_rng(7).permutation(len(c))]
@@ -235,3 +235,29 @@ def test_diag_genes_follow_the_input_order():
         )
     assert got["fitted"].index.tolist() == order
     pd.testing.assert_frame_equal(got["fitted"], want["fitted"].loc[order], check_exact=True)
+
+
+@pytest.mark.parametrize("mode", ["discovery", "anova"])
+def test_fit_order_is_numeric_not_bytewise(mode):
+    """Review deseq2 r5, SE5-m1: dcast sorts an integer GroupId numerically, so "999" fits before
+    "1000".
+
+    Run ``a`` has ids 1..3000, where bytewise order is "1", "10", "100", "1000", ... Run ``b`` has
+    the same rows under ids 10000..12999, which sort the same both ways. With these counts the fit
+    moves by 2.6e-7 under that permutation, so a bytewise fit order breaks exact equality. Ids
+    500..3499 do not: that permutation happens to leave this fit bit-identical. The
+    shuffled-against-sorted test cannot see this either, since both of its runs fit in the same
+    order, whichever order that is.
+    """
+    c = _nb_counts()
+    a_ids = [str(1 + g) for g in range(len(c))]
+    b_ids = [str(10000 + g) for g in range(len(c))]
+    ta = edge_rust.run(c.set_axis(a_ids), sample_info(), CMP, {"mode": mode})
+    tb = edge_rust.run(c.set_axis(b_ids), sample_info(), CMP, {"mode": mode})
+    key = dict(zip(a_ids, b_ids))
+    ta["GroupId"] = [key[str(g)] for g in ta["GroupId"]]
+    ta = ta.set_index("GroupId")
+    tb = tb.set_index(tb["GroupId"].astype(str)).drop(columns="GroupId")
+    tb.index.name = "GroupId"
+    pd.testing.assert_frame_equal(ta.loc[tb.index], tb, check_exact=True)
+    assert np.array_equal(ta.index, tb.index)
