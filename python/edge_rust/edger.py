@@ -1,9 +1,10 @@
 """The production edgeR table around the Rust engine.
 
 Mirrors what MDFlexiComparisons does after the engine call: the left join of the engine table to
-every gene id (``merge(..., all.x = TRUE)``, which orders rows by GroupId as a string), the
-integer GroupId, and for ANOVA runs ``.packageANOVAOutput`` (``R/runANOVA.R``): the omnibus
-columns plus ``MaxLog2FCPair`` / ``MaxLog2FC``, every column as a string with NA written as "".
+every gene id, the integer GroupId (rows in numeric GroupId order when every id is an integer,
+as production's final table is, otherwise by GroupId as a string), and for ANOVA runs
+``.packageANOVAOutput`` (``R/runANOVA.R``): the omnibus columns plus ``MaxLog2FCPair`` /
+``MaxLog2FC``, every column as a string with NA written as "".
 """
 
 from __future__ import annotations
@@ -32,6 +33,11 @@ def _control_specs(control_cols) -> list[tuple[str, str]]:
             cols, types = [cols], [types]
         return list(zip(cols, types))
     return [(c["Column"], c["Type"]) for c in control_cols]
+
+
+def _is_int_id(g: str) -> bool:
+    """Whether ``type_convert`` would read the GroupId as an integer."""
+    return g.isascii() and g.lstrip("-").isdigit()
 
 
 def _r_character(x: float) -> str:
@@ -127,8 +133,12 @@ def run(
         for s in PAIR_STATS:
             out[f"{s} {p['label']}"] = p[s]
     table = pd.DataFrame(out)
-    # merge(allDT, stats, by = "GroupId"): rows ordered by the character key (C collation).
-    order = sorted(range(len(gene_ids)), key=lambda i: gene_ids[i].encode())
+    # Production's final table is in numeric GroupId order when every id is an integer;
+    # otherwise rows follow the merge's character key (C collation).
+    if all(_is_int_id(g) for g in gene_ids):
+        order = sorted(range(len(gene_ids)), key=lambda i: int(gene_ids[i]))
+    else:
+        order = sorted(range(len(gene_ids)), key=lambda i: gene_ids[i].encode())
     table = table.iloc[order].reset_index(drop=True)
 
     if params.get("mode") == "anova":
@@ -142,7 +152,7 @@ def run(
             table[c] = [_r_character(v) for v in table[c]]
 
     # type_convert(out, "integer", "GroupId"), when every id is an integer.
-    if all(g.isascii() and g.lstrip("-").isdigit() for g in table["GroupId"]):
+    if all(_is_int_id(g) for g in table["GroupId"]):
         table["GroupId"] = table["GroupId"].astype(np.int64)
     if params.get("mode") == "anova":
         table["GroupId"] = table["GroupId"].astype(str)
@@ -165,7 +175,7 @@ def _diag(res: dict, gene_ids: list[str], sample_ids: list[str]) -> dict:
     d = res["diag"]
     cols = list(res["design_cols"])
     ids = [gene_ids[i] for i in d["kept_idx"]]
-    if all(g.isascii() and g.lstrip("-").isdigit() for g in ids):
+    if all(_is_int_id(g) for g in ids):
         ids = [int(g) for g in ids]
     samples = pd.DataFrame(
         {"replicate": sample_ids, "lib_size": d["lib_size"], "norm_factor": d["norm_factor"]}

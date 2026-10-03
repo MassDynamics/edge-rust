@@ -61,6 +61,9 @@ def test_table_matches_production(case):
     counts, si, cmp, params = load(case)
     got = edge_rust.run(counts, si, cmp, params)
     want = pd.read_csv(CASES_DIR / case / "reference_output.csv")
+    # runEdgeRPairwiseStats returns C-collation order; runDiscovery's final table, which the port
+    # reproduces, is in numeric GroupId order.
+    want = want.sort_values("GroupId", kind="stable").reset_index(drop=True)
     assert list(got.columns) == list(want.columns)
     assert (got["GroupId"].to_numpy() == want["GroupId"].to_numpy()).all()
     for c in want.columns[1:]:

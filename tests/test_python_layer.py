@@ -112,3 +112,20 @@ def test_non_ascii_digit_group_id_is_not_converted():
     out = edge_rust.run(c, sample_info(), CMP, {})
     assert not pd.api.types.is_integer_dtype(out["GroupId"])
     assert out["GroupId"].tolist().count("3") == 1
+
+
+@pytest.mark.parametrize("mode", ["discovery", "anova"])
+def test_rows_are_in_numeric_group_id_order(mode):
+    """Production's final table (runDiscovery and runANOVA) is in numeric GroupId order, so 9
+    comes before 10 and 100; a C-collation sort would put "10" and "100" first."""
+    out = edge_rust.run(counts(120), sample_info(), CMP, {"mode": mode})
+    ids = [int(g) for g in out["GroupId"]]
+    assert ids == sorted(ids)
+
+
+def test_non_integer_ids_keep_string_order():
+    """With any non-integer GroupId the ids stay strings, ordered by the merge's C collation."""
+    c = counts(12)
+    c.index = list(c.index[:-1]) + ["g"]
+    out = edge_rust.run(c, sample_info(), CMP, {})
+    assert out["GroupId"].tolist() == sorted(c.index, key=str.encode)
