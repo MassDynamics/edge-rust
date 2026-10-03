@@ -797,7 +797,8 @@ fn dsvdc21(x: &mut [f64], p: usize, s: &mut [f64], v: &mut [f64]) -> usize {
             let mp1 = m + 1;
             let mut ls = l;
             for lls in lp1..=mp1 {
-                ls = m - lls + lp1;
+                // LINPACK's `m - lls + lp1`, reordered so the usize never goes through -1.
+                ls = m + lp1 - lls;
                 if ls == l {
                     break;
                 }
@@ -938,4 +939,24 @@ fn dsvdc21(x: &mut [f64], p: usize, s: &mut [f64], v: &mut [f64]) -> usize {
     }
     s.copy_from_slice(&ss[1..=p]);
     info
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The negligible-singular-value scan in `dsvdc21` runs `lls` up to `m + 1` with `l = 0`, where
+    /// LINPACK's `ls = m - lls + lp1` goes through -1. Debug builds panic on that intermediate; a
+    /// generic full-rank matrix reaches it on the first sweep.
+    #[test]
+    fn dsvdc21_full_rank_scan_does_not_underflow() {
+        let mut x = vec![4.0, 2.0, 1.0, 2.0, 5.0, 3.0, 1.0, 3.0, 6.0];
+        let (mut s, mut v) = (vec![0.0; 3], vec![0.0; 9]);
+        assert_eq!(dsvdc21(&mut x, 3, &mut s, &mut v), 0);
+        // Symmetric positive definite: singular values are the eigenvalues, sum = trace 15,
+        // product = det 67.
+        assert!((s.iter().sum::<f64>() - 15.0).abs() < 1e-12);
+        assert!((s.iter().product::<f64>() - 67.0).abs() < 1e-10);
+        assert!(s.windows(2).all(|w| w[0] >= w[1]));
+    }
 }

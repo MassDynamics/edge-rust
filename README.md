@@ -10,6 +10,7 @@ MDFlexiComparisons' `runEdgeRPairwiseStats` and `runANOVA`: a Rust core with a P
 uv sync
 uv run pytest
 cargo test --release --workspace
+cargo test --workspace   # debug: overflow checks and debug_assert! only run here
 ```
 
 The golden tests read the count corpus at `~/wd/md-count-golden-corpus` (or `MD_COUNT_CORPUS_DIR`).
