@@ -1,8 +1,11 @@
 # Reference outputs for every case here, from production MDFlexiComparisons (runEdgeRPairwiseStats,
 # sourced from R/*.R) in the md-flexi-r45-local image (edgeR 4.8.2). Writes reference_output.csv
 # (the production table, %.17g) and r_diag.csv (df.prior and df.residual.adj per kept gene).
-#   docker run --rm -v $PWD:/w -v <MDFlexiComparisons>:/flexi:ro -w /w md-flexi-r45-local:latest \
-#     Rscript generate.R
+# GroupId is integer when every id is one, as in production, so genes are fitted in numeric order;
+# a stalled gene takes the last written gene's value, so the order matters (review overnight r2,
+# Minor 1).
+#   docker run --rm --platform linux/amd64 -v "$PWD":/w -v <MDFlexiComparisons>:/flexi:ro -w /w \
+#     md-flexi-r45-local:latest Rscript generate.R
 suppressPackageStartupMessages({
   library(data.table); library(edgeR); library(limma); library(log4r); library(glue); library(stringr)
 })
@@ -13,7 +16,8 @@ for (case in list.dirs(".", recursive = FALSE)) {
   counts <- rd("input_counts.csv"); si <- rd("input_sample_info.csv"); cmp <- rd("input_comparisons.csv")
   params <- jsonlite::fromJSON(file.path(case, "params.json"))
   ctl <- params$control_cols
-  long <- data.table::melt(data.table(GroupId = counts$id, counts[-1]), id.vars = "GroupId",
+  gid <- if (all(grepl("^-?[0-9]+$", counts$id))) as.integer(counts$id) else counts$id
+  long <- data.table::melt(data.table(GroupId = gid, counts[-1]), id.vars = "GroupId",
                            variable.name = "replicate", value.name = "intensity", variable.factor = FALSE)
   long$intensity <- as.numeric(long$intensity)
   long <- merge(long, data.table(si), by = "replicate")
