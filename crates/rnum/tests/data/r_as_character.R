@@ -1,5 +1,5 @@
 # Rewrites column 2 of r_as_character.tsv with R's as.character() of the double whose bits are in
-# column 1. Run in the production image from this directory:
+# column 1 (written by r_as_character_inputs.py). Run in the production image from this directory:
 #   docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w md-flexi-r45-local:latest \
 #     Rscript r_as_character.R
 d <- read.delim("r_as_character.tsv", header = FALSE, colClasses = "character", quote = "",

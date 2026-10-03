@@ -51,7 +51,10 @@ def _group_id_order(ids: list[str]) -> list[int]:
 
 
 def _r_character(x) -> list[str]:
-    """R's ``as.character`` of each double (``1e5`` is "1e+05"), NA as ""."""
+    """R's ``as.character`` of each double (``1e5`` is ``"1e+05"``), NA as "".
+
+    The same function lives in deseq2-rust (``deseq2_rust/deseq2.py``); keep the two identical.
+    """
     x = np.asarray(x, dtype=np.float64)
     out = _core.r_as_character(x.tolist())
     return ["" if na else s for na, s in zip(np.isnan(x), out)]

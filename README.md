@@ -17,6 +17,12 @@ The golden tests read the count corpus at `~/wd/md-count-golden-corpus` (or `MD_
 The Python golden tests fail without it (`EDGE_RUST_ALLOW_NO_CORPUS=1` skips them instead); the
 Rust `glibm_golden` test skips.
 
+The R references (the corpus, `crates/rnum/tests/data/` and the review probes) come from the
+production image `md-flexi-r45-local:latest` (R 4.5.0) run as `linux/amd64` under emulation on an
+Apple silicon Mac. Results that depend on x87 long double, such as the near-ties in
+`r_as_character.tsv`, are assumed to match native x86-64 production; that has not been checked on
+native hardware.
+
 ## Consumers
 
 deseq2-rust depends on the `rnum` and `edger-core` crates here through a git dependency pinned to

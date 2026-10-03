@@ -1,5 +1,6 @@
 //! M1: `brent_fmin` against R's `optimize` (optimize.c `fcn1`); the bound and pf cases lock
-//! behaviour that already matched.
+//! behaviour that already matched. Review r1 rnum N1 to N3: empty and NaN inputs to `mean`,
+//! `median` and `quantile`.
 // The literals are R's bits, written out at 18 digits on purpose (review r2, R2-7).
 #![allow(clippy::excessive_precision)]
 use rnum::optim::{brent_fmin, optimize_default_tol};
@@ -75,4 +76,28 @@ fn brent_treats_minus_inf_as_minus_dbl_max_like_r_optimize() {
 #[test]
 fn pf_upper_of_negative_f_is_one() {
     assert_eq!(rnum::nmath::pf(-0.5, 1.0, 10.0, false, false), 1.0);
+}
+
+// Review r1, rnum N1: mean(numeric(0)) is NaN in R (summary.c real_mean, 0/0).
+#[test]
+fn ldouble_mean_of_empty_is_nan() {
+    assert!(rnum::ldouble::mean(&[]).is_nan());
+    assert!(rnum::ldouble::row_mean(&[]).is_nan());
+}
+
+// Review r1, rnum N2: median(c(1, 2, NA)) and median(c(NaN, 1, 2, 3)) are NA in R.
+#[test]
+fn median_with_nan_is_nan() {
+    assert!(rnum::linalg::median(&[1.0, 2.0, f64::NAN]).is_nan());
+    assert!(rnum::linalg::median(&[f64::NAN, 1.0, 2.0, 3.0]).is_nan());
+}
+
+// Review r1, rnum N3: quantile(numeric(0), c(0.25, 0.75)) is NA NA in R, not an error.
+#[test]
+fn quantile7_of_empty_is_nan_not_a_panic() {
+    let q = std::panic::catch_unwind(|| rnum::linalg::quantile7(&[], &[0.25, 0.75]));
+    assert!(
+        matches!(q, Ok(ref v) if v.len() == 2 && v.iter().all(|x| x.is_nan())),
+        "{q:?}"
+    );
 }

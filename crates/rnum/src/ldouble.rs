@@ -330,6 +330,9 @@ pub fn sum(x: &[f64]) -> f64 {
 /// One row of R's `rowMeans()` (no NA removal): the extended sum divided by `n` in extended
 /// precision, rounded once.
 pub fn row_mean(x: &[f64]) -> f64 {
+    if x.is_empty() {
+        return f64::NAN;
+    }
     let mut s = Ld::ZERO;
     for &v in x {
         s = s.add(Ld::from_f64(v));
@@ -340,6 +343,9 @@ pub fn row_mean(x: &[f64]) -> f64 {
 /// R's `mean()` of doubles (`real_mean`): an extended sum divided by `n`, then one correction
 /// pass. Non-finite inputs fall back to plain `double` arithmetic.
 pub fn mean(x: &[f64]) -> f64 {
+    if x.is_empty() {
+        return f64::NAN;
+    }
     if x.iter().any(|v| !v.is_finite()) {
         return crate::linalg::mean(x);
     }

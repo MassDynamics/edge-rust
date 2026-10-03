@@ -1,6 +1,6 @@
 //! `rformat::r_as_character` against R 4.5.0 in the production image: every line of
 //! `data/r_as_character.tsv` is a double's bits and R's `as.character()` of it. Regenerate with
-//! `data/r_as_character.R` (see its header).
+//! `data/r_as_character_inputs.py` (column 1) and `data/r_as_character.R` (column 2).
 
 use rnum::rformat::r_as_character;
 

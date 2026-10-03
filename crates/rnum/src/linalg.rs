@@ -233,10 +233,10 @@ fn sorted(x: &[f64]) -> Vec<f64> {
     s
 }
 
-/// `median(x)` of finite values (no NA handling: caller filters).
+/// `median(x)`: NA (NaN) when `x` is empty or holds a NaN, as R's `median.default`.
 pub fn median(x: &[f64]) -> f64 {
     let n = x.len();
-    if n == 0 {
+    if n == 0 || x.iter().any(|v| v.is_nan()) {
         return f64::NAN;
     }
     let s = sorted(x);
@@ -249,9 +249,12 @@ pub fn median(x: &[f64]) -> f64 {
     }
 }
 
-/// `quantile(x, probs, type = 7)`.
+/// `quantile(x, probs, type = 7)`; NA (NaN) for every prob when `x` is empty.
 pub fn quantile7(x: &[f64], probs: &[f64]) -> Vec<f64> {
     let n = x.len();
+    if n == 0 {
+        return vec![f64::NAN; probs.len()];
+    }
     let s = sorted(x);
     probs
         .iter()
