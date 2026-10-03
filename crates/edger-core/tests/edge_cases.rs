@@ -105,6 +105,28 @@ fn sample_emptied_by_the_filter_is_rejected_with_the_r_message() {
     }
 }
 
+// R3-1: a library that is not zero can still give a zero or NaN norm factor, so R stops on
+// `min(offset)` (makeCompressedMatrix.R:360-361) before any fit.
+#[test]
+fn non_finite_offset_from_a_tiny_library_is_rejected_with_the_r_message() {
+    // s0's library is a single count in a kept gene: its upper quartile is 0.
+    let mut tiny = synth_counts(50, 6);
+    for g in 1..50 {
+        tiny[g * 6] = 0.0;
+    }
+    tiny[0] = 1.0;
+    // No gene is positive in every sample: every RLE geometric mean is 0.
+    let mut nogene = synth_counts(50, 6);
+    for g in 0..50 {
+        nogene[g * 6 + g % 6] = 0.0;
+    }
+    for (counts, method) in [(tiny, "upperquartile"), (nogene, "RLE")] {
+        let mut inp = input(counts, vec![], ("B", "A"));
+        inp.norm_method = method.into();
+        expect_err(inp, "offsets must be finite values");
+    }
+}
+
 // R2-6: a +-1e200 control passes hat() but overflows X'WX, so it is the input band that
 // reaches the Levenberg guard. R also errors there, in locfit ("NA/NaN/Inf in foreign function
 // call (arg 2)"); the port's message is its own.

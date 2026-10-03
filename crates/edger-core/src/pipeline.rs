@@ -324,6 +324,22 @@ pub fn run_edger_diag(input: &EdgerInput) -> Result<(EdgerOutput, EdgerDiag)> {
         .map(|(a, b)| a * b)
         .collect();
     let offset: Vec<f64> = lib_eff.iter().map(|v| ln(*v)).collect();
+    // A tiny library can still give a zero or NaN norm factor. R stops when `min(offset)` is
+    // not finite (makeCompressedMatrix.R:360-361); its min returns NaN if any offset is NaN.
+    let min_offset = offset.iter().fold(f64::INFINITY, |m, &v| {
+        if v.is_nan() || m.is_nan() {
+            f64::NAN
+        } else {
+            m.min(v)
+        }
+    });
+    if !min_offset.is_finite() {
+        let j = offset.iter().position(|v| !v.is_finite()).unwrap_or(0);
+        return Err(err(format!(
+            "offsets must be finite values (sample '{}' has a non-finite offset under {})",
+            input.sample_ids[j], input.norm_method
+        )));
+    }
 
     // No residual df: estimateDisp returns NA dispersions and glmQLFit then fails in an `if`.
     if p >= nlib {
