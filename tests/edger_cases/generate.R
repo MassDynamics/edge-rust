@@ -11,8 +11,11 @@ suppressPackageStartupMessages({
 })
 for (f in list.files("/flexi/R", pattern = "[.]R$", full.names = TRUE)) source(f)
 fmt <- function(v) if (is.numeric(v)) ifelse(is.na(v), "", sprintf("%.17g", v)) else v
+failed <- character()
 for (case in list.dirs(".", recursive = FALSE)) {
-  rd <- function(f) read.csv(file.path(case, f), colClasses = "character", check.names = FALSE)
+  # A case that errors must not keep its old references, so the suite fails on it.
+  unlink(file.path(case, c("reference_output.csv", "r_diag.csv")))
+  rd <-function(f) read.csv(file.path(case, f), colClasses = "character", check.names = FALSE)
   counts <- rd("input_counts.csv"); si <- rd("input_sample_info.csv"); cmp <- rd("input_comparisons.csv")
   params <- jsonlite::fromJSON(file.path(case, "params.json"))
   ctl <- params$control_cols
@@ -46,6 +49,7 @@ for (case in list.dirs(".", recursive = FALSE)) {
                       df_residual_adj = fmt(fit$df.residual.adj)), file.path(case, "r_diag.csv"))
     sprintf("%s: %d genes, df.prior %.4g, df_adj == 0: %d, 0 < df_adj < 0.01: %d", case, nrow(fit$counts),
             fit$df.prior[1], sum(fit$df.residual.adj == 0), sum(fit$df.residual.adj > 0 & fit$df.residual.adj < 0.01))
-  }, error = function(e) paste(case, "ERROR", conditionMessage(e)))
+  }, error = function(e) { failed <<- c(failed, case); paste(case, "ERROR", conditionMessage(e)) })
   message(res)
 }
+if (length(failed)) stop("cases failed: ", paste(failed, collapse = ", "))
