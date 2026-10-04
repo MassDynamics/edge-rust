@@ -502,7 +502,7 @@ fn e2e_tables_match_reference_output() {
         }
         n += 1;
     }
-    assert_eq!(n, per_tier(25, 5), "edgeR ok runs");
+    assert_eq!(n, per_tier(28, 5), "edgeR ok runs");
 }
 
 fn expect_err(what: &str, input: &EdgerInput, expected: &str) {
