@@ -27,10 +27,8 @@ native hardware.
 ## Consumers
 
 deseq2-rust depends on the `rnum` and `edger-core` crates here through a git dependency pinned to
-a full commit SHA, with a `file:///Users/...` URL. That URL resolves on the development machine
-only; it is deliberate while both repos are local, and must become a hosted git URL (same `rev`)
-before either repo is built anywhere else. After a change here that deseq2-rust needs, commit,
-then bump the `rev` in deseq2-rust's `Cargo.toml`.
+a full commit SHA over https. After a change here that deseq2-rust needs, commit, then bump the
+`rev` in deseq2-rust's `Cargo.toml`.
 
 ## Known differences from production
 
