@@ -117,5 +117,9 @@ fn estimate_disp_on_every_edger_run() {
         eprintln!("{run}: {}", worst.join(", "));
         n += 1;
     }
-    assert_eq!(n, 25, "runs (the corpus has 25)");
+    assert_eq!(
+        n,
+        per_tier(25, 5),
+        "runs (the full corpus has 25, the small tier 5)"
+    );
 }

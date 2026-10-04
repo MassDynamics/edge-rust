@@ -1,0 +1,276 @@
+{
+  "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+  "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+  "n_runs": 10,
+  "runs": [
+    {
+      "run_id": "count_edger_count_synth_all_ctlfactor_numeric",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_ci_df.csv": "a42297fa2acbef9f3c1795da5cbe810622101d0ef99d863888b3a62dd873e4f9",
+        "edger_contrast_omnibus.csv": "e2db72115eb3b540ae5fe647b0c52f5adda985c08410314001aa5ff5ed08b6b4",
+        "edger_design.csv": "55e1ad7b35d7d1bbbcb7eecec502b131ecff822c3c289e1b7703e2a501c6de7a",
+        "edger_disp.csv": "e6573dd1616614efc8e215615bd72a2c0ffa7c62949408f6e76c828a5ed18b5b",
+        "edger_disp_glmfit005.csv": "9f317eb10c15cac2c719b10cb30c2856a4ff7749e02b8b0ecaae08a2ef0b3a79",
+        "edger_disp_l0.csv": "c75c5f96ac9405e52114de22822ca35993b4d6b886f1332dd846dc3c1c56b779",
+        "edger_disp_m0.csv": "1409635fe7cc907c0468491a8d066e75fd82d113aab71b7c1dafe3dbe8d4f186",
+        "edger_disp_prior_df_inputs.csv": "0bedcfa5cadb98a2419ee73930ba5f48e880990d4d270b7a026d3b00e1bfc515",
+        "edger_disp_sel.csv": "f57db9ef29d8a8a365ebcb2fda966782af36a3e2c0cf0abb0ae7a518d828bf8d",
+        "edger_filter.csv": "7d389d6ba867f71b6c144afd818d174f45ce439de9148844cb330cd38d3a52a0",
+        "edger_norm.csv": "19fea4690b836b4b5cd1ff375899cf68271af878d984f8c6111290575db58529",
+        "edger_ql_coefficients.csv": "302d0b3884a62f2199ba0592876393755ed6bea853fb0d47f3587843161c9d1b",
+        "edger_ql_fit.csv": "d1ac8f64f9f88d59664035e118fa13c8c0167a80d2bf41f07e3f21ff88ee54c2",
+        "edger_test_omnibus.csv": "c5a295f29505944460cc4cbf5fcc62db09dcde311f6d570091562aaee8160cd3",
+        "edger_test_pair1.csv": "73ce408bf190f432c25ca3708c24456b025899b2c3306c2b2d24f1827bf4e11b",
+        "edger_test_pair2.csv": "15bd23834220442212676fff7a1920048f6f5ba53bc6d2f1b1c95dd329b3aeae",
+        "edger_test_pair3.csv": "6688b9d302106e960408b5c5b4674cd29c2376b8b5c5b82e94b689e9e4483e06",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "59f109b2c2968157db1d9d7da7fbafeb30ea955c721e0e675b8432ded1d43baf",
+        "reference.json": "866dbff5f554021885e7b4b12a9483b3dceeb2e6d31042e8c14f050256f78d7e",
+        "reference_output.csv": "1c16c29272b38aff458fed2687c0c0a49f78e618824a156e3c18857fe3b5446c"
+      }
+    },
+    {
+      "run_id": "count_edger_count_synth_anova_ctlfactor",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_ci_df.csv": "6b7af8cff8a4c3fcfc6da66eddc4a0354f6a885d4896f73397be5d009622a0c5",
+        "edger_contrast_omnibus.csv": "1a89a96f4fdd0a5f15ddd0b9eaf60940596aa0e5d470340a3343760126f42fcc",
+        "edger_design.csv": "6a96edaac3928b8043a5a87bb611d958543fad259405211d617fc39f49363bc3",
+        "edger_disp.csv": "a7953b719a0d21e8f5a4ebbe0a4a2bce3ae88a3a7fff0b47c2a7881263a53a2d",
+        "edger_disp_glmfit005.csv": "ece6ce237ffd04e3ba7195629b66044639e62e0bb55af19255219658cd6ee18d",
+        "edger_disp_l0.csv": "9c603962fea9fb798d27e5381c54c0cf355f328e40fbe96fb52a2c20b2eb7989",
+        "edger_disp_m0.csv": "1e845c082a0f4404d8b48de2a5e17491d60a6cef2fc1c1bece2627faefcbd977",
+        "edger_disp_prior_df_inputs.csv": "c29184f497ef8c584fcca90da6218fa84c53f7e0e364bf7aac0f726cb2962ae4",
+        "edger_disp_sel.csv": "9cc42543e2fad46abadc65e8b970967faebc4567af82963f2dbe4b481d6ee47f",
+        "edger_filter.csv": "2d9fe0bf44e2bbcc7e69071021a908efa485a1494650057736f9cee847bb2216",
+        "edger_norm.csv": "ab56e8fa441535bb6e83c6505969f144eac8299f55f9b52fddda7ce421b8c62a",
+        "edger_ql_coefficients.csv": "35c95de740ddad152d73a34986a5531839b35765f08ebd2ae1eab189cb44edcb",
+        "edger_ql_fit.csv": "905871fd6073ad824d4fbdac809edf8b0fb307a43c36ab639109a2aa2da8abfe",
+        "edger_test_omnibus.csv": "cb1fd4f6a372badc4223da5bde147c1fa3bb9404ba12430ad7feec893f91e170",
+        "edger_test_pair1.csv": "4fe2e8b5b7f7f49d36dee935d86238562d15f301f2daead8ecf20c5c851f4bdc",
+        "edger_test_pair2.csv": "0adebf8993759f87009c65dbf15a8e662e06bc08934db73fb0d1997028d63bdd",
+        "edger_test_pair3.csv": "65b96d5b1466cf779c34d7267153c23697e637d9dceb3ff6790332a940b1bfff",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "09fb23824e84a8b3842d56a4c5944485aa34ba338f6287bcb59411fb10ba1efc",
+        "reference.json": "f2e655f5ad15521051a97aa35f05648b11965bf0de199ed593297fa9e94e1b0c",
+        "reference_output.csv": "fd3a32b92bbf778f9a895d6c222045728af2bd797497251f8b4335a382116528"
+      }
+    },
+    {
+      "run_id": "count_edger_norm_RLE",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_ci_df.csv": "102f15d2dd7d8bde19cb166375237a17ca973c1b722d4a814a69b6c8e03c2696",
+        "edger_contrast_omnibus.csv": "741f8cf5ec4bd52fc634ec7d8330a0d44042fc425686121b1123de26d92e6191",
+        "edger_design.csv": "4e8658d4f80d81af7548d1b444ce523d0d5e3a84d94abaf39b6c514338d3c2a6",
+        "edger_disp.csv": "0dc99400331480d3eb92c57dc68b0154b4c53d54f967b936149f23988049f32e",
+        "edger_disp_glmfit005.csv": "a1b697c3e19e6259eb90ddb3ea8ad8a6eaa004fb894d329e16f968aed766cfd1",
+        "edger_disp_l0.csv": "5001185541a11873f7b6f98332ab6cb3f386d4770e5adfd0451e6d4e6409536e",
+        "edger_disp_m0.csv": "dd7acbb89c434d1f307fca387885aa866af335f53cb157e0d16da7bf949b3c91",
+        "edger_disp_prior_df_inputs.csv": "b10515a934626e2494e4bf09b6c810af5a36899de0f762852bd0f3b05d0ca3bd",
+        "edger_disp_sel.csv": "986dbbbd76e6f135ebc59f4d3bd1a63f8053ec7947f215c7d830548f473c6c70",
+        "edger_filter.csv": "ebc93eece7c80473152eed491a21a197bb772a3bea776f926e7ca8e5f4087493",
+        "edger_norm.csv": "cd01737cc1dd4ac1bb892429b3c4ce5cb0ae4673625f378caa1957abc64c3a7e",
+        "edger_ql_coefficients.csv": "002514d23bb9012522f268877bce582cbf1eb8795ace2e888de6252bc92f26e0",
+        "edger_ql_fit.csv": "0932d6979a554252fea7aed8a11f48e28b7b1e4b38a49d8e4f2fc46df4a6b004",
+        "edger_test_omnibus.csv": "e72f9afc3bb0a5c96db404142c455425328c8dbd59fed055bada55ff1a425e56",
+        "edger_test_pair1.csv": "d4e1db6299d6622fe705f0ebe47bdc3a5d10ae550caa7bcffadc07382e5ad94f",
+        "edger_test_pair2.csv": "0dc0513cf6492270e569e98e0a81244b5cbb03f4e8e8b3c3ce9b510c8104144c",
+        "edger_test_pair3.csv": "763a99cfb4822fb68a6e9a223edca26cffb975b2469feaea4cb91bbf029cac97",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "c80736e3218b5cad8f4a81bad21dff431655d97a4231b12df3cf1cddb886e13c",
+        "reference.json": "7ea706b37eb467e9e68a3f39ef21d259b501f0ada48c8d5aa439d1de76488816",
+        "reference_output.csv": "fd572afa329b71e90d9355ad146bff8e249bb12db16956e8b3cb5925fb536e79"
+      }
+    },
+    {
+      "run_id": "count_edger_norm_none",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_ci_df.csv": "7d2df2ed408f93f079a648375cd520b7640ca9c8a5aa89390e0740b0d72f04a6",
+        "edger_contrast_omnibus.csv": "741f8cf5ec4bd52fc634ec7d8330a0d44042fc425686121b1123de26d92e6191",
+        "edger_design.csv": "4e8658d4f80d81af7548d1b444ce523d0d5e3a84d94abaf39b6c514338d3c2a6",
+        "edger_disp.csv": "bc0cffcbd939404b75003bc2de26ee9dd14dbf266467999e9291aa43aa749f4f",
+        "edger_disp_glmfit005.csv": "49211ba0eb1fae867c143928cd84da13c95d2befc7b4ba5cb77418a41955c396",
+        "edger_disp_l0.csv": "430b9b73b0be97d40dbdc4248c0448be140c533a818d8e2ff02bde36962f7db6",
+        "edger_disp_m0.csv": "c122776edb94948c58944f5e790323ffe6e0dcdb2c35e6f71ba683f668d7d6ed",
+        "edger_disp_prior_df_inputs.csv": "8e916b6eeb35afed6ff909cc0b1852f7b03485b61950ad9ff06a2ba3e1f1c935",
+        "edger_disp_sel.csv": "986dbbbd76e6f135ebc59f4d3bd1a63f8053ec7947f215c7d830548f473c6c70",
+        "edger_filter.csv": "ebc93eece7c80473152eed491a21a197bb772a3bea776f926e7ca8e5f4087493",
+        "edger_norm.csv": "63bfc399183c1861162d2bdc9ab82d7ef0f5e65ad72f5854cd3f05d5f40a5391",
+        "edger_ql_coefficients.csv": "e5dc5d5d2066a4966bc2b65aa3ad6f8878cf23b322d73cd9e7ad909bf637d45e",
+        "edger_ql_fit.csv": "b594a424f7c4ecaaeedb312000c8de34aedf5d4c03800ed269721498e0322d5d",
+        "edger_test_omnibus.csv": "727914651ee184458dab20111ff315a1b9ff5a6480d9f100f624e015ab064912",
+        "edger_test_pair1.csv": "a11d18415a4123e15f3a4acb6896c441987733e4f71c66e3297ca78def6eb679",
+        "edger_test_pair2.csv": "62cee398d35d4b2b1fab3b2f28276d451857a2a14501163ccdda62de043e368c",
+        "edger_test_pair3.csv": "8b0d42c343b3525b4187d8ab42847b26db274398eb892dbdfa9befec74e15a55",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "c80736e3218b5cad8f4a81bad21dff431655d97a4231b12df3cf1cddb886e13c",
+        "reference.json": "dcb6f2def9231fd26bd0804f04c692e0f8f19a0478f5dcc435774b17346b8f8d",
+        "reference_output.csv": "9465d3ce62fb9df890e697d7fa2116dd614e8bbe44f14008256f747f3622b097"
+      }
+    },
+    {
+      "run_id": "count_edger_norm_upperquartile",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_ci_df.csv": "f051dd2a5b8feba3cf1b0fbd1654ecaf89e0b78cbf89b60162ad5dc11da82873",
+        "edger_contrast_omnibus.csv": "741f8cf5ec4bd52fc634ec7d8330a0d44042fc425686121b1123de26d92e6191",
+        "edger_design.csv": "4e8658d4f80d81af7548d1b444ce523d0d5e3a84d94abaf39b6c514338d3c2a6",
+        "edger_disp.csv": "7cfb7c8a25805ae6a114234263ab113c38edd706b782b9aa7286041acc65e739",
+        "edger_disp_glmfit005.csv": "49241e9f46304caef37c4038de86696f0e68991b25fbd6f2bca68177a64bbc8d",
+        "edger_disp_l0.csv": "ec3b653047539b331abe6c5e5a7109faabd268599f71b834e2a574d951bde41a",
+        "edger_disp_m0.csv": "34dd1fea118903ccae0c75000bcf4ac90fad4905984b1398c5ffdacb1bcef924",
+        "edger_disp_prior_df_inputs.csv": "55c390482f9e210a67c7cfd5b8f77ef00fdca8921bfc078c5e86aa06a79e5606",
+        "edger_disp_sel.csv": "986dbbbd76e6f135ebc59f4d3bd1a63f8053ec7947f215c7d830548f473c6c70",
+        "edger_filter.csv": "ebc93eece7c80473152eed491a21a197bb772a3bea776f926e7ca8e5f4087493",
+        "edger_norm.csv": "852ff28094956fbcef1c013828e7bf9efdad91f8497859d7bea694c170b4baca",
+        "edger_ql_coefficients.csv": "ca082a38c254cb19b354701650a183e2ecd7de4f52a092682ecd2f05173b8138",
+        "edger_ql_fit.csv": "dc490e6f946046e0518c953d36e4c4c0e85a1e6e7b41c5b05924f12000fe0d76",
+        "edger_test_omnibus.csv": "b4f4294c2bf2c96394d8494d93390de3debee4ca1ea97d44bb48da8345db1079",
+        "edger_test_pair1.csv": "9490f13e84ba8f6631c98610a2504f60d0035044a8691e3fd75bdf12f11ed842",
+        "edger_test_pair2.csv": "bf66f04e79cdf5b1c950c876766313e95dd62771317710afb468e5bcbbe8638e",
+        "edger_test_pair3.csv": "5b56b820652b74dd20e74e38bc446d8ed4e21abd7e36f5a689e3e012e99e85ad",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "c80736e3218b5cad8f4a81bad21dff431655d97a4231b12df3cf1cddb886e13c",
+        "reference.json": "4d8003f565ad137e719743a2cb1d3c7b45b3de8301870d62491487974bbcba05",
+        "reference_output.csv": "8d2dea884d1fdc916e157cc72331d926276bc41d85126f632d52528501962f0a"
+      }
+    },
+    {
+      "run_id": "edge_edger_filter_drops_all",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_design.csv": "4e8658d4f80d81af7548d1b444ce523d0d5e3a84d94abaf39b6c514338d3c2a6",
+        "edger_filter.csv": "1a1098a538672945d3b6adcf78e7b503b1670ad810b6c1ef85e85d103f77ecd2",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "e418a1f9a29615a8290b8fa5f7d13eb3a8b01c879d6ef8a223bc01f97f5c845f",
+        "input_sample_info.csv": "c80736e3218b5cad8f4a81bad21dff431655d97a4231b12df3cf1cddb886e13c",
+        "reference.json": "2b34b364931536d7e688951ab1d8b0ed9d0d8914a653f7c3ece9038f53eb25a4"
+      }
+    },
+    {
+      "run_id": "edge_edger_negative",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "reference.json": "58a6f72bb2d03336a351f443bc1f481a1c29bf814300d6bc314142e7301b953f"
+      }
+    },
+    {
+      "run_id": "edge_edger_one_rep_per_condition",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "edger_design.csv": "2d6389928779ecee6a1d105891030c8d1720da29efe091465f38304ccdce4d75",
+        "edger_filter.csv": "87bd724993c1956e54cc79a30ac75b51b583ff29973eb63424fced9724382372",
+        "edger_norm.csv": "2ef41bd7abdf1aed3c6c663ac53a129d72a1df93d6e2fe4fd2150005684a4c75",
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "2c249a2f06e51d5e1116129923b0c15008783cdc180e61839e60dabed5b58d90",
+        "input_sample_info.csv": "ebaac50fa67205f0558b2e3ffcc8c80386634c76f246135f62187fba52f8e684",
+        "reference.json": "2d8a823de140ceeff1af699ea2770eaebb80fcd26d3d44b20fbba3b4e41bc06b"
+      }
+    },
+    {
+      "run_id": "edge_edger_protein_entity",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "reference.json": "73270cf56e4d3aa6bd1806e7b0041290197372e4cda2053f5c5f631079ee8534"
+      }
+    },
+    {
+      "run_id": "edge_edger_rank_deficient",
+      "self_check_passed": true,
+      "internal_checks_pass": true,
+      "provenance": {
+        "md_limma_sha": "b3b8abc30ba3134514f34672dd0cd7d62074bb2b",
+        "reference_sha256": "ab755d6b46af5976cd482dc96a418efd44841ab9a16fd5f43ae6e594b3ebdd14",
+        "corpus_harness_sha256": "900715efed8794c10ef44d9a31f3ae95f2491fd8941c0fabaf794fc4a010dab2",
+        "md_flexi_comparisons_sha": "e56546c8bb1cca5e2674d74e79efa1fd83b8bce8",
+        "image_digest": "sha256:1ac4c785e9779f64d1331de9cbaae9b5cbc9a56f55c2b42624ac8d2aed9df482"
+      },
+      "files": {
+        "input_comparisons.csv": "bbe0d69713f605e6ef927867735857f554a2c50c03c34841d1e7b9a3de4cdcfa",
+        "input_counts.csv": "63a122964c531c08e0f5a77ae8d2808bc7a87fa003474ba9040630936a8ff1b5",
+        "input_sample_info.csv": "2a488bd930935788360f42d66191fb2d575eae2b96ab29e9eb511e32d0054e97",
+        "reference.json": "026ae02484b4e97e5fdd6900c67b85accbbb1e63d921e341ef0e8c90ce6cdd30"
+      }
+    }
+  ]
+}

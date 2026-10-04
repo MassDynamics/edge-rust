@@ -15,7 +15,8 @@ cargo test --workspace   # debug: overflow checks and debug_assert! only run her
 
 The golden tests read the count corpus at `~/wd/md-count-golden-corpus` (or `MD_COUNT_CORPUS_DIR`).
 The Python golden tests fail without it (`EDGE_RUST_ALLOW_NO_CORPUS=1` skips them instead); the
-Rust `glibm_golden` test skips.
+Rust `glibm_golden` test skips. CI runs the same tests against `tests/corpus-small`, ten whole
+count_synth runs copied from the full corpus by `scripts/build_small_corpus.py`.
 
 The R references (the corpus, `crates/rnum/tests/data/` and the review probes) come from the
 production image `md-flexi-r45-local:latest` (R 4.5.0) run as `linux/amd64` under emulation on an

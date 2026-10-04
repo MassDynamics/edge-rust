@@ -35,5 +35,9 @@ fn filter_by_expr_on_every_edger_run() {
         );
         n += 1;
     }
-    assert_eq!(n, 27, "runs dump edger_filter (the corpus has 27)");
+    assert_eq!(
+        n,
+        per_tier(27, 7),
+        "runs dump edger_filter (the full corpus has 27, the small tier 7)"
+    );
 }

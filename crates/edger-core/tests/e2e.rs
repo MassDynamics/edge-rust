@@ -502,7 +502,7 @@ fn e2e_tables_match_reference_output() {
         }
         n += 1;
     }
-    assert_eq!(n, 25, "edgeR ok runs");
+    assert_eq!(n, per_tier(25, 5), "edgeR ok runs");
 }
 
 fn expect_err(what: &str, input: &EdgerInput, expected: &str) {
@@ -533,12 +533,12 @@ fn e2e_expected_errors() {
         // from an ordinary run.
         let input = match run.as_str() {
             "edge_edger_negative" => {
-                let mut i = edger_input("count_edger_airway_all_ctlnone");
+                let mut i = edger_input("count_edger_count_synth_all_ctlfactor_numeric");
                 i.counts[7] = -1.0;
                 i
             }
             "edge_edger_protein_entity" => {
-                let mut i = edger_input("count_edger_airway_all_ctlnone");
+                let mut i = edger_input("count_edger_count_synth_all_ctlfactor_numeric");
                 i.entity_type = "protein".into();
                 i
             }
@@ -547,5 +547,5 @@ fn e2e_expected_errors() {
         expect_err(&run, &input, &expected);
         n += 1;
     }
-    assert_eq!(n, 5, "edgeR error runs");
+    assert_eq!(n, per_tier(5, 5), "edgeR error runs");
 }

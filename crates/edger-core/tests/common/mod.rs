@@ -32,6 +32,20 @@ pub fn edger_runs() -> Vec<String> {
     v
 }
 
+/// The expected run count: `full` on the full corpus, `small` on the committed CI tier
+/// (`tests/corpus-small`, whose `index.json` carries `"tier": "small"`).
+pub fn per_tier(full: usize, small: usize) -> usize {
+    let p = corpus_dir().join("index.json");
+    let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    let j: serde_json::Value =
+        serde_json::from_str(&s).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    if j["tier"].as_str() == Some("small") {
+        small
+    } else {
+        full
+    }
+}
+
 pub fn reference_json(run: &str) -> serde_json::Value {
     let p = ref_dir(run).join("reference.json");
     let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));

@@ -1,29 +1,20 @@
 #!/bin/bash
-# The full gate in the Rust image: cargo test (debug and release) and pytest. The golden tests
-# need the count corpus (~780 MB, outside git), so a tarball of it is fetched from S3 and streamed
-# in after the tracked files; the container sees it at /work/md-count-golden-corpus.
-# Locally, point CORPUS_TAR at a tarball you already have to skip the download.
-# Usage: CORPUS_S3=s3://.../md-count-golden-corpus-<date>.tar scripts/test
+# The CI gate in the Rust image: cargo test (debug and release) and pytest against the committed
+# small corpus tier (tests/corpus-small, built by scripts/build_small_corpus.py). The full count
+# corpus (~780 MB, outside git) stays the local gate: without MD_COUNT_CORPUS_DIR the tests read
+# ~/wd/md-count-golden-corpus.
+# Usage: scripts/test
 set -e
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 export COPYFILE_DISABLE=1   # macOS tar: no AppleDouble ._ files in the stream
 RUST_IMAGE=rust:1.95.0      # keep equal to rust-toolchain.toml
 UV_VERSION=0.12.6
 
-if [ -z "${CORPUS_TAR:-}" ]; then
-  [ -z "${CORPUS_S3:-}" ] && echo "CORPUS_S3 or CORPUS_TAR must be set" && exit 1
-  echo "--- :aws: fetch the count corpus"
-  CORPUS_TAR=$(mktemp)
-  trap 'rm -f "$CORPUS_TAR"' EXIT
-  aws s3 cp --no-progress "$CORPUS_S3" "$CORPUS_TAR"
-fi
-
 echo "--- :rust: cargo test (debug + release), pytest"
-# Two tar archives back to back; tar -i reads past the end of the first.
-{ git -C "$REPO" ls-files -z | tar -C "$REPO" --null -T - -cf -; cat "$CORPUS_TAR"; } \
+git -C "$REPO" ls-files -z | tar -C "$REPO" --null -T - -cf - \
   | docker run -i --rm --platform linux/amd64 \
-    -e MD_COUNT_CORPUS_DIR=/work/md-count-golden-corpus "$RUST_IMAGE" sh -c \
-    "mkdir /work && cd /work && tar -xif - \
+    -e MD_COUNT_CORPUS_DIR=/work/tests/corpus-small "$RUST_IMAGE" sh -c \
+    "mkdir /work && cd /work && tar -xf - \
      && cargo test --workspace --locked && cargo test --workspace --release --locked \
      && curl -LsSf https://astral.sh/uv/$UV_VERSION/install.sh | sh \
      && ~/.local/bin/uv run pytest -q"

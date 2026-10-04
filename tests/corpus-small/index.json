@@ -1,0 +1,71 @@
+{
+  "kind": "count",
+  "versions_status": "confirmed",
+  "generated_at": "2026-10-01 10:53:42.246984",
+  "n_runs": 10,
+  "corpus_dir": "/corpus",
+  "arrow_available": false,
+  "runs": {
+    "count_edger_count_synth_all_ctlfactor_numeric": {
+      "id": "count_edger_count_synth_all_ctlfactor_numeric",
+      "status": "ok",
+      "error_matches_expected": null,
+      "self_check_passed": null
+    },
+    "count_edger_count_synth_anova_ctlfactor": {
+      "id": "count_edger_count_synth_anova_ctlfactor",
+      "status": "ok",
+      "error_matches_expected": null,
+      "self_check_passed": null
+    },
+    "count_edger_norm_RLE": {
+      "id": "count_edger_norm_RLE",
+      "status": "ok",
+      "error_matches_expected": null,
+      "self_check_passed": null
+    },
+    "count_edger_norm_upperquartile": {
+      "id": "count_edger_norm_upperquartile",
+      "status": "ok",
+      "error_matches_expected": null,
+      "self_check_passed": null
+    },
+    "count_edger_norm_none": {
+      "id": "count_edger_norm_none",
+      "status": "ok",
+      "error_matches_expected": null,
+      "self_check_passed": null
+    },
+    "edge_edger_filter_drops_all": {
+      "id": "edge_edger_filter_drops_all",
+      "status": "error",
+      "error_matches_expected": true,
+      "self_check_passed": null
+    },
+    "edge_edger_one_rep_per_condition": {
+      "id": "edge_edger_one_rep_per_condition",
+      "status": "error",
+      "error_matches_expected": true,
+      "self_check_passed": null
+    },
+    "edge_edger_rank_deficient": {
+      "id": "edge_edger_rank_deficient",
+      "status": "error",
+      "error_matches_expected": true,
+      "self_check_passed": null
+    },
+    "edge_edger_negative": {
+      "id": "edge_edger_negative",
+      "status": "error",
+      "error_matches_expected": true,
+      "self_check_passed": null
+    },
+    "edge_edger_protein_entity": {
+      "id": "edge_edger_protein_entity",
+      "status": "error",
+      "error_matches_expected": true,
+      "self_check_passed": null
+    }
+  },
+  "tier": "small"
+}
