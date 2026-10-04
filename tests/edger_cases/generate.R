@@ -1,9 +1,9 @@
 # Reference outputs for every case here, from production MDFlexiComparisons (runEdgeRPairwiseStats,
 # sourced from R/*.R) in the md-flexi-r45-local image (edgeR 4.8.2). Writes reference_output.csv
 # (the production table, %.17g) and r_diag.csv (df.prior and df.residual.adj per kept gene).
-# GroupId is integer when every id is one, as in production, so genes are fitted in numeric order;
-# a stalled gene takes the last written gene's value, so the order matters (review overnight r2,
-# Minor 1).
+# GroupId is integer when every id is one, as in production, so genes are fitted in numeric order.
+# The dispersion and QL fits depend on the order, and a stalled gene takes the last written gene's
+# value (review overnight r2, Minor 1; review loop r2, R Nit 4).
 #   docker run --rm --platform linux/amd64 -v "$PWD":/w -v <MDFlexiComparisons>:/flexi:ro -w /w \
 #     md-flexi-r45-local:latest Rscript generate.R
 suppressPackageStartupMessages({
@@ -17,7 +17,10 @@ for (case in list.dirs(".", recursive = FALSE)) {
   params <- jsonlite::fromJSON(file.path(case, "params.json"))
   ctl <- params$control_cols
   gid <- if (all(grepl("^-?[0-9]+$", counts$id))) as.integer(counts$id) else counts$id
-  stopifnot(!anyNA(gid))  # as.integer gives NA beyond int32, and dcast would merge those ids
+  # as.integer gives NA beyond int32, and "007" and "7" cast to one id; dcast would merge both.
+  bad <- is.na(gid) | gid %in% gid[duplicated(gid)]
+  if (any(bad)) stop(basename(case), ": ids beyond int32 or colliding: ",
+                     paste(head(counts$id[bad]), collapse = ", "))
   long <- data.table::melt(data.table(GroupId = gid, counts[-1]), id.vars = "GroupId",
                            variable.name = "replicate", value.name = "intensity", variable.factor = FALSE)
   long$intensity <- as.numeric(long$intensity)

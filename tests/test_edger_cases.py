@@ -27,9 +27,8 @@ import pandas as pd
 import pytest
 
 CASES_DIR = Path(__file__).parent / "edger_cases"
-CASES = sorted(
-    p.name for p in CASES_DIR.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))
-)
+# Every directory is a case, as in generate.R (list.dirs); test_cases_exist fails on a stray one.
+CASES = sorted(p.name for p in CASES_DIR.iterdir() if p.is_dir())
 CASE_FILES = (
     "input_counts.csv",
     "input_sample_info.csv",
@@ -61,22 +60,36 @@ def close(name: str, got: np.ndarray, want: np.ndarray, floor=0.0):
 
 
 def test_cases_exist():
-    assert {
-        "gap_zero",
-        "gap_tiny",
-        "singleton",
-        "zerogroup",
+    # Equality, so adding, removing or renaming a case is a deliberate edit here.
+    assert set(CASES) == {
+        "ctl_num",
+        "ctl_zero",
         "df1",
         "dispcap",
+        "gap_tiny",
+        "gap_zero",
+        "k_alc_none",
         "k_lib1_one_gene_none",
+        "k_lib1_reid_none",
+        "k_lib1_rle_nogene_none",
         "k_lib2_one_gene_none",
         "k_lib5_one_gene_none",
-        "k_lib1_rle_nogene_none",
-        "k_lib1_reid_none",
-        "thin100_tmm",
+        "rle_allzero_tmm",
+        "rle_allzero_uq",
+        "singleton",
         "thin1000_tmm",
-        "k_alc_none",
-    } <= set(CASES)
+        "thin100_tmm",
+        "tiny1",
+        "tiny2",
+        "tiny3",
+        "tiny4",
+        "twozero",
+        "twozero_ctl",
+        "uq_sparse_rle",
+        "uq_sparse_tmm",
+        "zero2grp",
+        "zerogroup",
+    }
     # A case directory missing a file fails here instead of dropping or skipping its tests.
     missing = [f"{c}/{f}" for c in CASES for f in CASE_FILES if not (CASES_DIR / c / f).exists()]
     assert not missing, f"edger_cases files missing: {missing}"

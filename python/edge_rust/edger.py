@@ -126,13 +126,17 @@ def run(
         for a, b, c, d in zip(comparisons["left"], comparisons["right"], enc_l, enc_r)
     ]
     # .buildCountMatrixFromLongDT (dcast) orders the rows by GroupId and production fits in that
-    # order whatever the metadata order. The order moves the QL prior and F by about 1e-10
-    # relative, and F by about 1e-12 absolute where it is near 0 (review deseq2 r4, SE4-M1).
-    # SE = |Log2FC| / sqrt(F), so for a gene with F near 0 the order changes SE and the CIs by
-    # any amount (13 times its value on twozero_ctl gene 16) and can flip stat between a number
-    # and NA, with or without a stalled fit (review loop r1, R Minor 1). When a one-group fit does
-    # not converge, edgeR reuses the last written gene's value, which adds about 3e-8 on AveExpr
-    # and df.prior (review overnight r2, Minor 1).
+    # order whatever the metadata order. The order moves df.prior by up to 2e-9 relative, F by up
+    # to 2e-10 relative, and F by about 1e-12 absolute where it is near 0 (review deseq2 r4,
+    # SE4-M1; review loop r2, R Nit 1). SE = |Log2FC| / sqrt(F), so for a gene with F near 0 the
+    # order changes SE and the CIs by any amount (SE C - B on twozero_ctl gene 16 fell 14.1-fold,
+    # from 106,798 to 7,560) and can flip stat between a number and NA, with or without a stalled
+    # fit (review loop r1, R Minor 1). When a one-group fit does not converge, edgeR reuses the
+    # last written gene's value. A stall inside estimateDisp moves AveExpr and df.prior by about
+    # 3e-8 (review overnight r2, Minor 1). A stall in aveLogCPM gives the gene that gene's AveExpr
+    # outright, so a reorder can move it by whole log2-CPM units: with gene 88 of k_alc_none
+    # renamed 99999, R gives gene 89 10.186701565417202, bit-identical to gene 87, instead of
+    # gene 88's 8.558757 (oracle run 2026-10-04, review loop r2, R Minor 1).
     input_ids = [str(g) for g in counts.index]
     fit_order = _group_id_order(input_ids)
     gene_ids = [input_ids[i] for i in fit_order]
