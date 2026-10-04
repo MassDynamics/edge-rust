@@ -38,5 +38,9 @@ fn norm_factors_on_every_edger_run() {
         }
         n += 1;
     }
-    assert_eq!(n, 26, "runs dump edger_norm (the corpus has 26)");
+    assert_eq!(
+        n,
+        per_tier(26, 6),
+        "runs dump edger_norm (the full corpus has 26, the small tier 6)"
+    );
 }

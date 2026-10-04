@@ -124,7 +124,7 @@ def test_expected_error(run):
     expected = manifest(run)["expected_error"]
     if run in ("edge_edger_negative", "edge_edger_protein_entity"):
         # These fail in the router before inputs are dumped: rebuild them from an ordinary run.
-        counts, si, cmp, params = inputs("count_edger_airway_all_ctlnone")
+        counts, si, cmp, params = inputs("count_edger_count_synth_all_ctlfactor_numeric")
         if run == "edge_edger_negative":
             counts.iloc[0, 0] = -1
         else:
@@ -137,7 +137,7 @@ def test_expected_error(run):
 
 
 def test_diagnostics_are_consistent_with_the_table():
-    run = next(r for r in RUNS if "airway_all_ctlfactor" in r)
+    run = next(r for r in RUNS if "count_synth_all_ctlfactor_numeric" in r)
     counts, si, cmp, params = inputs(run)
     plain = edge_rust.run(counts, si, cmp, params)
     table, diag = edge_rust.run(counts, si, cmp, params, diagnostics=True)

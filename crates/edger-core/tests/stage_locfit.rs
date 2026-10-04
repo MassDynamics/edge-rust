@@ -45,5 +45,9 @@ fn m0_from_l0_on_every_edger_run() {
         assert!(worst <= 1e-8, "{run}: m0 max rel {worst:e}");
         n += 1;
     }
-    assert_eq!(n, 25, "runs reached estimateDisp (the corpus has 25)");
+    assert_eq!(
+        n,
+        per_tier(25, 5),
+        "runs reached estimateDisp (the full corpus has 25, the small tier 5)"
+    );
 }
