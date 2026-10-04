@@ -48,10 +48,15 @@ then bump the `rev` in deseq2-rust's `Cargo.toml`.
   `mglmOneWay`, one in `aveLogCPM`). For every non-converged gene before the first written gene
   of a call R returns stack garbage (6.95e-310 in the oracle), and the port returns the last
   iterate instead; on the probe where this happens end to end, AveExpr differs by up to 2.4e-7.
-  A call is one group at one grid point of `estimateDisp`, one `glmFit`, or one `aveLogCPM`, so
-  the result depends on the GroupId order, which the port takes from production (numeric for
-  integer ids). The trigger is any low-depth sample next to normal ones, under any
-  normalisation: a library of 1 to 5 counts under "none", or one sample thinned to 100 or 1,000
-  counts under TMM (`tests/edger_cases/k_lib*`, `thin*`, all within 1e-8 of production; before
-  the emulation they drifted up to 3.5e-7). None of the 25 edgeR corpus runs that reach the fit
-  has a non-converged gene (counted on the port, whose stalls match R's on every logged probe).
+  A call is one group of one zero-pattern subgroup (`.comboGroups`) at one grid point of
+  `estimateDisp`, one group of one `glmFit`, or one `aveLogCPM`, so the result depends on the
+  GroupId order, which the port takes from production (numeric for integer ids). The order
+  matters without a stall too: it moves F by about 1e-10 relative and 1e-12 absolute near 0, and
+  since SE = |Log2FC| / sqrt(F), a gene with F near 0 can see SE and the CIs change by any amount
+  (13 times on `twozero_ctl` gene 16) or stat flip between a number and NA; a stall adds about
+  3e-8 on AveExpr and df.prior (review loop r1, R Minor 1). The trigger is any low-depth sample
+  next to normal ones, under any normalisation: a library of 1 to 5 counts under "none", or one
+  sample thinned to 100 or 1,000 counts under TMM (`tests/edger_cases/k_lib*`, `thin*`, all
+  within 1e-8 of production; before the emulation they drifted up to 3.5e-7). None of the 25
+  edgeR corpus runs that reach the fit has a non-converged gene (counted on the port, whose
+  stalls match R's on every logged probe).
