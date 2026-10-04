@@ -1,9 +1,9 @@
 #!/bin/bash
 # Tags the built commit v<version>-<build number> and publishes a GitHub release for it, so every
-# green main build has a tag to pin to (deseq2-rust pins edge-rust by it). One API call creates
+# green master build has a tag to pin to (deseq2-rust pins edge-rust by it). One API call creates
 # both the tag and the release. Needs a token with contents:write on this repo: GH_TOKEN from the
 # environment, else the SSM parameter below.
-# Usage (CI only): scripts/release
+# Usage (CI only, master): scripts/release
 set -e
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 GH_REPO=MassDynamics/edge-rust
