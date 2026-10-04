@@ -1,0 +1,28 @@
+#!/bin/bash
+# Tags the built commit v<version>-<build number> and publishes a GitHub release for it, so every
+# green main build has a tag to pin to (deseq2-rust pins edge-rust by it). One API call creates
+# both the tag and the release. Needs a token with contents:write on this repo: GH_TOKEN from the
+# environment, else the SSM parameter below.
+# Usage (CI only): scripts/release
+set -e
+REPO=$(cd "$(dirname "$0")/.." && pwd)
+GH_REPO=MassDynamics/edge-rust
+SSM_TOKEN=/services/github/dependencies
+
+if [ -z "${GH_TOKEN:-}" ]; then
+  GH_TOKEN=$(aws ssm get-parameter --name "$SSM_TOKEN" --with-decryption \
+    --query Parameter.Value --output text)
+fi
+
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$REPO/pyproject.toml")
+tag=v${version}-${BUILDKITE_BUILD_NUMBER}
+
+echo "--- :github: release $tag at $BUILDKITE_COMMIT"
+# The token goes in through a curl config on stdin, so it stays out of the process list.
+printf 'header = "Authorization: Bearer %s"\n' "$GH_TOKEN" | curl -fsS -K - \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/$GH_REPO/releases" \
+  -d "{\"tag_name\": \"$tag\", \"target_commitish\": \"$BUILDKITE_COMMIT\",
+       \"name\": \"$tag\", \"generate_release_notes\": true}" > /dev/null
+
+buildkite-agent annotate --style success "Released \`$tag\` (https://github.com/$GH_REPO/releases/tag/$tag)"
