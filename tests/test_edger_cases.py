@@ -10,7 +10,9 @@ upperquartile input). ``k_lib*_none`` (one sample with a library of 1 to 5 count
 and ``thin*_tmm`` (one sample of the corpus count_synth case thinned to 100 or 1,000 counts)
 make a one-group fit miss convergence in estimateDisp, where edgeR reuses the last written
 gene's coefficient (review overnight r1, M1); ``k_lib1_reid_none`` renames the stalled gene so
-that its numeric and bytewise predecessors differ (review overnight r2, Minor 1). Inputs come from
+that its numeric and bytewise predecessors differ (review overnight r2, Minor 1); ``k_alc_none``
+makes aveLogCPM stall on gene 89, where R returns gene 88's AveExpr (review overnight r2, Nit 2;
+review loop r1, SE3-m1). Every case directory must hold all six files. Inputs come from
 ``make_gap_inputs.R``, ``make_k_lib_inputs.py`` and ``make_thin_inputs.R``.
 """
 
@@ -25,7 +27,17 @@ import pandas as pd
 import pytest
 
 CASES_DIR = Path(__file__).parent / "edger_cases"
-CASES = sorted(p.name for p in CASES_DIR.iterdir() if (p / "reference_output.csv").exists())
+CASES = sorted(
+    p.name for p in CASES_DIR.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))
+)
+CASE_FILES = (
+    "input_counts.csv",
+    "input_sample_info.csv",
+    "input_comparisons.csv",
+    "params.json",
+    "reference_output.csv",
+    "r_diag.csv",
+)
 TOL = 1e-8
 
 
@@ -63,7 +75,11 @@ def test_cases_exist():
         "k_lib1_reid_none",
         "thin100_tmm",
         "thin1000_tmm",
+        "k_alc_none",
     } <= set(CASES)
+    # A case directory missing a file fails here instead of dropping or skipping its tests.
+    missing = [f"{c}/{f}" for c in CASES for f in CASE_FILES if not (CASES_DIR / c / f).exists()]
+    assert not missing, f"edger_cases files missing: {missing}"
 
 
 def close_p(name: str, got: np.ndarray, want: np.ndarray):
@@ -136,13 +152,8 @@ def test_table_matches_production(case):
 @pytest.mark.parametrize("case", CASES)
 def test_df_matches_production(case):
     counts, si, cmp, params = load(case)
-    diag_csv = CASES_DIR / case / "r_diag.csv"
-    if not diag_csv.exists():
-        # k_lib1_reid_none's table came from a logged production run; its r_diag.csv waits for
-        # the next generate.R run (overnight fix round 2: the oracle was unavailable).
-        pytest.skip(f"{case}: no r_diag.csv yet")
     _, diag = edge_rust.run(counts, si, cmp, params, diagnostics=True)
-    want = pd.read_csv(diag_csv, dtype={"id": str}).set_index("id")
+    want = pd.read_csv(CASES_DIR / case / "r_diag.csv", dtype={"id": str}).set_index("id")
     genes = diag["genes"]
     ids = list(genes["id"].astype(str))
     assert sorted(ids) == sorted(want.index)

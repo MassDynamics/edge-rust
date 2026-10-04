@@ -17,6 +17,7 @@ for (case in list.dirs(".", recursive = FALSE)) {
   params <- jsonlite::fromJSON(file.path(case, "params.json"))
   ctl <- params$control_cols
   gid <- if (all(grepl("^-?[0-9]+$", counts$id))) as.integer(counts$id) else counts$id
+  stopifnot(!anyNA(gid))  # as.integer gives NA beyond int32, and dcast would merge those ids
   long <- data.table::melt(data.table(GroupId = gid, counts[-1]), id.vars = "GroupId",
                            variable.name = "replicate", value.name = "intensity", variable.factor = FALSE)
   long$intensity <- as.numeric(long$intensity)
