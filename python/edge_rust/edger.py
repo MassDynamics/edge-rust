@@ -132,10 +132,15 @@ def run(
     # order changes SE and the CIs by any amount (SE C - B on twozero_ctl gene 16 fell 14.1-fold,
     # from 106,798 to 7,560) and can flip stat between a number and NA, with or without a stalled
     # fit (review loop r1, R Minor 1). When a one-group fit does not converge, edgeR reuses the
-    # last written gene's value. A stall inside estimateDisp moves AveExpr and df.prior by about
-    # 3e-8 (review overnight r2, Minor 1). A stall in aveLogCPM gives the gene that gene's AveExpr
-    # outright, so a reorder can move it by whole log2-CPM units: with gene 88 of k_alc_none
-    # renamed 99999, R gives gene 89 10.186701565417202, bit-identical to gene 87, instead of
+    # last written gene's value, so a stall moves the result by however far that gene is from the
+    # stalled one. A stall inside estimateDisp moves the common dispersion, and through it every
+    # gene's AveExpr, df.prior and F: by about 3e-8 on k_lib1_reid_none (review overnight r2,
+    # Minor 1), but with gene 88 of k_alc_none renamed 99999 the common dispersion moves 1.4%,
+    # df.prior 0.6%, and for the genes other than 89 AveExpr by up to 0.023 and F by up to 14%
+    # where F >= 0.1, and the port matches R on both orders (review loop r3, R Minor 1). A stall
+    # in aveLogCPM gives the gene the AveExpr of the last written gene outright, so a reorder can
+    # move it by whole log2-CPM units: with gene 88 of k_alc_none renamed 99999,
+    # R gives gene 89 10.186701565417202, bit-identical to gene 87, instead of
     # gene 88's 8.558757 (oracle run 2026-10-04, review loop r2, R Minor 1).
     input_ids = [str(g) for g in counts.index]
     fit_order = _group_id_order(input_ids)

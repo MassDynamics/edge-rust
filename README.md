@@ -49,16 +49,24 @@ then bump the `rev` in deseq2-rust's `Cargo.toml`.
   of a call R returns stack garbage (6.95e-310 in the oracle), and the port returns the last
   iterate instead; on the probe where this happens end to end, AveExpr differs by up to 2.4e-7.
   A call is one group of one zero-pattern subgroup (`.comboGroups`) at one grid point of
-  `estimateDisp`, one group of one one-way `glmFit` (`mglmOneWay`; any other design goes to
-  `mglmLevenberg`, which has no such slot), or one `aveLogCPM`, so the result depends on the
-  GroupId order, which the port takes from production (numeric for integer ids). The order
+  `estimateDisp`, one group of one one-way `glmFit`, or one `aveLogCPM`. The two `glmFit` kinds
+  (the `estimateDisp` grid fits go through `glmFit` too, `adjustedProfileLik.R:29`) exist only
+  for a one-way design (`mglmOneWay`); any other design goes to `mglmLevenberg`, which has no
+  such slot. So the result depends on the GroupId order, which the port takes from production
+  (numeric for integer ids). The order
   matters without a stall too: it moves df.prior by up to 2e-9 relative, F by up to 2e-10
   relative and by about 1e-12 absolute near 0, and since SE = |Log2FC| / sqrt(F), a gene with F
   near 0 can see SE and the CIs change by any amount (SE C - B on `twozero_ctl` gene 16 fell
-  14.1-fold, from 106,798 to 7,560) or stat flip between a number and NA. The two kinds of stall
-  differ in size. A stall inside `estimateDisp` moves AveExpr and df.prior by about 3e-8 (review
-  loop r1, R Minor 1). A stall in `aveLogCPM` gives the gene the AveExpr of the last written gene
-  outright, so a reorder can move it by whole log2-CPM units: on `k_alc_none` gene 89 takes gene
+  14.1-fold, from 106,798 to 7,560) or stat flip between a number and NA. Either kind of stall
+  moves the result by however far the last written gene is from the stalled one, so neither has
+  a fixed size. A stall inside `estimateDisp` moves the common dispersion, and through it every
+  gene's AveExpr, df.prior and F: by about 3e-8 on `k_lib1_reid_none` (review loop r1, R Minor
+  1), but on `k_alc_none` with gene 88 renamed 99999 the common dispersion moves 1.4% (0.20156 to
+  0.19872), df.prior 0.6%, and for the genes other than 89 AveExpr by up to 0.023 (gene 211) and
+  F by up to 14% where F >= 0.1, jointly with the `aveLogCPM` stall below. The port matches R on
+  both orders (AveExpr within 2e-15, F within 7e-13 relative; review loop r3, R Minor 1). A stall
+  in `aveLogCPM` gives the gene the AveExpr of the last written gene outright, so a reorder can
+  move it by whole log2-CPM units: on `k_alc_none` gene 89 takes gene
   88's 8.558757, and with gene 88 renamed 99999 R gives gene 89 10.186701565417202, bit-identical
   to gene 87 (oracle run 2026-10-04, review loop r2, R Minor 1). The trigger is any low-depth sample
   next to normal ones, under any normalisation: a library of 1 to 5 counts under "none", or one
