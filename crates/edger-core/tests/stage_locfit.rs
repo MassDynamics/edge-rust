@@ -47,7 +47,7 @@ fn m0_from_l0_on_every_edger_run() {
     }
     assert_eq!(
         n,
-        per_tier(25, 5),
-        "runs reached estimateDisp (the full corpus has 25, the small tier 5)"
+        per_tier(28, 5),
+        "runs reached estimateDisp (the full corpus has 28, the small tier 5)"
     );
 }

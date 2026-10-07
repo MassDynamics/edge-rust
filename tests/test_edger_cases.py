@@ -138,9 +138,11 @@ def test_table_matches_production(case):
         if stat in ("stat", "SE", "CILeft", "CIRight", "PValue", "AdjPValue"):
             # sqrt(F) carries half the relative error of F, and F below 1e-4 is checked at 1e-8
             # absolute (gaps there are ~1e-13, rounding noise around 0 on both sides, which a
-            # 1-df p-value near 1 turns into ~1e-7), so the derived values are compared where
-            # F >= 1e-4; p is still checked below it, at 1e-6 absolute.
-            keep = ~(np.abs(f_w) < 1e-4)
+            # 1-df p-value near 1 turns into ~1e-7), so p is compared where F >= 1e-4 and at
+            # 1e-6 absolute below it. stat, SE and CI are compared down to the corpus
+            # edger_f_floor (|F| < 1e-8, test_edger_golden.py): the worst below F = 1e-4 was
+            # 4.9e-13 relative (golden corpus audit, 2026-10-04).
+            keep = ~(np.abs(f_w) < (1e-4 if stat in ("PValue", "AdjPValue") else 1e-8))
             if stat in ("PValue", "AdjPValue"):
                 lo_g, lo_w = g[~keep], w[~keep]
                 assert (np.isnan(lo_g) == np.isnan(lo_w)).all(), f"{case} {c}: NA pattern, F < 1e-4"
